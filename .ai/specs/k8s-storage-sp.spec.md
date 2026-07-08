@@ -125,7 +125,7 @@ their respective prerequisites.
 Foundation layer: chi-based HTTP server with graceful shutdown, signal handling,
 configuration loading from environment variables, and route
 registration for all OpenAPI-defined endpoints. Volume endpoints are under
-`/api/v1alpha1`, and the health endpoint is at `/api/v1alpha1/health`.
+`/api/v1alpha1`, and the health endpoint is at `/api/v1alpha1/volumes/health`.
 
 Out of scope: TLS termination (handled by infrastructure/ingress),
 authentication/authorization middleware, rate limiting.
@@ -135,7 +135,7 @@ authentication/authorization middleware, rate limiting.
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
 | REQ-HTTP-010 | The SP MUST start an HTTP server on the configured address | MUST | |
-| REQ-HTTP-020 | The SP MUST register all OpenAPI-defined routes. Volume endpoints under `/api/v1alpha1`, health at `/api/v1alpha1/health` | MUST | DD-010 |
+| REQ-HTTP-020 | The SP MUST register all OpenAPI-defined routes. Volume endpoints under `/api/v1alpha1`, health at `/api/v1alpha1/volumes/health` | MUST | DD-010 |
 | REQ-HTTP-030 | The SP MUST initiate graceful shutdown on SIGTERM: stop new connections, drain in-flight requests within configured timeout, exit cleanly | MUST | |
 | REQ-HTTP-040 | The SP MUST initiate graceful shutdown on SIGINT, behaving identically to REQ-HTTP-030 | MUST | |
 | REQ-HTTP-050 | The SP MUST load configuration values from environment variables | MUST | |
@@ -170,7 +170,7 @@ authentication/authorization middleware, rate limiting.
 
 - **Validates:** REQ-HTTP-020
 - **Given** the HTTP server has started
-- **When** a request is made to any defined endpoint (e.g., `/api/v1alpha1/health`, `/api/v1alpha1/volumes`)
+- **When** a request is made to any defined endpoint (e.g., `/api/v1alpha1/volumes/health`, `/api/v1alpha1/volumes`)
 - **Then** the request MUST be routed to the corresponding handler
 
 ##### AC-HTTP-030: Graceful shutdown on SIGTERM
@@ -252,7 +252,7 @@ None - independently deliverable.
 
 #### Overview
 
-Implementation of `GET /api/v1alpha1/health` as defined in the OpenAPI spec. This
+Implementation of `GET /api/v1alpha1/volumes/health` as defined in the OpenAPI spec. This
 endpoint is polled by the DCM control plane every 10 seconds to determine SP
 liveness and backing provider health. The endpoint checks Kubernetes API server
 reachability and reports `status: "healthy"` or `status: "unhealthy"` per the
@@ -265,7 +265,7 @@ Out of scope: NATS connectivity checks, readiness vs liveness distinction
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| REQ-HLT-010 | The SP MUST expose `GET /api/v1alpha1/health` and return HTTP 200 OK | MUST | DD-010 |
+| REQ-HLT-010 | The SP MUST expose `GET /api/v1alpha1/volumes/health` and return HTTP 200 OK. The SPRM constructs health URLs as `{registered_endpoint}/health`, so the health endpoint MUST be at the resource-relative path | MUST | DD-010 |
 | REQ-HLT-020 | The health response MUST return a JSON body conforming to the `Health` schema with `status`, `type`, `path`, `version`, and `uptime` fields. The `status` field MUST be `"healthy"` when the backing K8s cluster is reachable, or `"unhealthy"` when it is not | MUST | DD-070 |
 | REQ-HLT-030 | The response MUST set `Content-Type: application/json` | MUST | |
 | REQ-HLT-040 | The health endpoint MUST be lightweight and return quickly, suitable for 10-second polling intervals. The only external call permitted is a Kubernetes API server version discovery request | MUST | |
@@ -279,14 +279,14 @@ Out of scope: NATS connectivity checks, readiness vs liveness distinction
 
 - **Validates:** REQ-HLT-010
 - **Given** the HTTP server is running
-- **When** a GET request is made to `/api/v1alpha1/health`
+- **When** a GET request is made to `/api/v1alpha1/volumes/health`
 - **Then** the SP MUST return HTTP 200 OK
 
 ##### AC-HLT-020: Health response body — healthy
 
 - **Validates:** REQ-HLT-020, REQ-HLT-050
 - **Given** the SP is running and the backing K8s cluster is reachable
-- **When** `GET /api/v1alpha1/health` is called
+- **When** `GET /api/v1alpha1/volumes/health` is called
 - **Then** the response body MUST contain:
   - `status`: `"healthy"`
   - `type`: `"k8s-storage-service-provider.dcm.io/health"`
@@ -298,7 +298,7 @@ Out of scope: NATS connectivity checks, readiness vs liveness distinction
 
 - **Validates:** REQ-HLT-020, REQ-HLT-060
 - **Given** the SP is running but the backing K8s cluster is unreachable
-- **When** `GET /api/v1alpha1/health` is called
+- **When** `GET /api/v1alpha1/volumes/health` is called
 - **Then** the response MUST be HTTP 200 OK
 - **And** the response body MUST contain:
   - `status`: `"unhealthy"`
@@ -1395,15 +1395,19 @@ errors, NATS disconnects, and HTTP panics MUST be logged at appropriate levels.
 
 ## 7. Design Decisions
 
-### DD-010: Health and volume paths under `/api/v1alpha1`
+### DD-010: Health endpoint path
 
-**Decision:** Health is at `GET /api/v1alpha1/health`. Volume CRUD is under
-`/api/v1alpha1/volumes`. Registration endpoint is `{SP_ENDPOINT}/api/v1alpha1/volumes`.
+**Decision:** Health is at `GET /api/v1alpha1/volumes/health` (resource-relative, for
+DCM health check integration which derives the health URL as
+`registered_endpoint + '/health'`). Volume CRUD is under `/api/v1alpha1/volumes`.
+Registration endpoint is `{SP_ENDPOINT}/api/v1alpha1/volumes`.
 
-**Rationale:** Matches the OpenAPI spec and keeps all v1alpha1 resources under
-one prefix. Differs from the container SP pattern (`/api/v1alpha1/containers/health`).
+**Rationale:** SPRM's `healthcheck/monitor.go` constructs health URLs as
+`endpoint + "/health"`, and the registered endpoint is
+`{base}/api/v1alpha1/volumes`. Matches the container SP pattern
+(`/api/v1alpha1/containers/health`).
 
-**Related requirements:** REQ-HLT-010, REQ-REG-042
+**Related requirements:** REQ-HTTP-020, REQ-HLT-010, REQ-REG-042
 
 ### DD-070: DCM three-state health model
 

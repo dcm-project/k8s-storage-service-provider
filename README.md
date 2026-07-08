@@ -60,7 +60,7 @@ Contract: `api/v1alpha1/openapi.yaml`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1alpha1/health` | Health check |
+| GET | `/api/v1alpha1/volumes/health` | Health check |
 | POST | `/api/v1alpha1/volumes` | Create volume |
 | GET | `/api/v1alpha1/volumes` | List volumes |
 | GET | `/api/v1alpha1/volumes/{volume_id}` | Get volume |

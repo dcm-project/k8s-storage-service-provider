@@ -34,10 +34,10 @@ type DCMConfig struct {
 
 // KubernetesConfig holds Kubernetes-specific settings.
 type KubernetesConfig struct {
-	Namespace             string `env:"NAMESPACE"              envDefault:"default"`
-	Kubeconfig            string `env:"KUBECONFIG"`
-	DefaultStorageClass   string `env:"DEFAULT_STORAGE_CLASS"`
-	DefaultAccessMode string `env:"DEFAULT_ACCESS_MODE" envDefault:"ReadWriteOnce"`
+	Namespace           string `env:"NAMESPACE"              envDefault:"default"`
+	Kubeconfig          string `env:"KUBECONFIG"`
+	DefaultStorageClass string `env:"DEFAULT_STORAGE_CLASS"`
+	DefaultAccessMode   string `env:"DEFAULT_ACCESS_MODE" envDefault:"ReadWriteOnce"`
 }
 
 // NATSConfig holds NATS connection settings (required when monitoring is enabled).

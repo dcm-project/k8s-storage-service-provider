@@ -16,7 +16,9 @@ vet:
 	go vet ./...
 
 test:
-	go test ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo -r --race
+
+check: fmt vet test
 
 tidy:
 	go mod tidy
@@ -54,4 +56,4 @@ check-generate-api: generate-api
 check-aep:
 	spectral lint --fail-severity=warn ./api/v1alpha1/openapi.yaml
 
-.PHONY: build run clean fmt vet test tidy generate-types generate-spec generate-server generate-client generate-api check-generate-api check-aep
+.PHONY: build run clean fmt vet test tidy check generate-types generate-spec generate-server generate-client generate-api check-generate-api check-aep

@@ -502,12 +502,12 @@ pure logic.
 
 > **Suggested Ginkgo structure:** `Describe("Health Endpoint")`
 
-### TC-U080: GET /api/v1alpha1/health returns healthy status
+### TC-U080: GET /api/v1alpha1/volumes/health returns healthy status
 
 - **Priority:** High
 - **Type:** Unit
 - **Given:** SP is running with mocked K8s client (healthy)
-- **When:** GET `/api/v1alpha1/health` handler is called
+- **When:** GET `/api/v1alpha1/volumes/health` handler is called
 - **Then:**
   - Response status: 200 OK
   - Response body:
@@ -521,12 +521,12 @@ pure logic.
     }
     ```
 
-### TC-U081: GET /api/v1alpha1/health returns unhealthy when K8s unreachable
+### TC-U081: GET /api/v1alpha1/volumes/health returns unhealthy when K8s unreachable
 
 - **Priority:** High
 - **Type:** Unit
 - **Given:** Mocked K8s client health check returns error
-- **When:** GET `/api/v1alpha1/health` handler is called
+- **When:** GET `/api/v1alpha1/volumes/health` handler is called
 - **Then:**
   - Response status: 200 OK (per DCM convention)
   - Response body: `{"status": "unhealthy"}`

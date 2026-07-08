@@ -98,7 +98,7 @@ or are not runnable.
 - **Given:** SP is running
 - **When:** HTTP requests are made to each endpoint
 - **Then:**
-  - `GET /api/v1alpha1/health` returns 200
+  - `GET /api/v1alpha1/volumes/health` returns 200
   - `POST /api/v1alpha1/volumes` does not return 404/405
   - `GET /api/v1alpha1/volumes` does not return 404/405
   - `GET /api/v1alpha1/volumes/{volume_id}` does not return 404/405 (may return 500 until implemented)
