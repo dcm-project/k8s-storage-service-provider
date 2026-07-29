@@ -1,7 +1,7 @@
 BINARY_NAME := k8s-storage-service-provider
 
 build:
-	go build -o bin/$(BINARY_NAME) ./cmd/$(BINARY_NAME)
+	CGO_ENABLED=0 go build -buildvcs=false -o bin/$(BINARY_NAME) ./cmd/$(BINARY_NAME)
 
 run:
 	go run ./cmd/$(BINARY_NAME)

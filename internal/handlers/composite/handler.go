@@ -1,25 +1,23 @@
-// Package composite wires health and unimplemented volume handlers for incremental delivery.
+// Package composite wires health and volume handlers into StrictServerInterface.
 package composite
 
 import (
 	"context"
 
-	v1alpha1 "github.com/dcm-project/k8s-storage-service-provider/api/v1alpha1"
 	oapigen "github.com/dcm-project/k8s-storage-service-provider/internal/api/server"
 	"github.com/dcm-project/k8s-storage-service-provider/internal/handlers/health"
-	"github.com/dcm-project/k8s-storage-service-provider/internal/httperror"
-	"github.com/dcm-project/k8s-storage-service-provider/internal/util"
+	"github.com/dcm-project/k8s-storage-service-provider/internal/handlers/volume"
 )
 
-// Handler implements StrictServerInterface by delegating health to the health handler
-// and returning not-implemented responses for volume operations.
+// Handler implements StrictServerInterface by forwarding to resource handlers.
 type Handler struct {
 	health *health.Handler
+	volume *volume.Handler
 }
 
-// NewHandler creates a composite handler for health and stub volume routes.
-func NewHandler(healthHandler *health.Handler) *Handler {
-	return &Handler{health: healthHandler}
+// NewHandler creates a composite StrictServerInterface multiplexer.
+func NewHandler(healthHandler *health.Handler, volumeHandler *volume.Handler) *Handler {
+	return &Handler{health: healthHandler, volume: volumeHandler}
 }
 
 var _ oapigen.StrictServerInterface = (*Handler)(nil)
@@ -28,30 +26,18 @@ func (h *Handler) GetHealth(ctx context.Context, req oapigen.GetHealthRequestObj
 	return h.health.GetHealth(ctx, req)
 }
 
-func notImplemented() v1alpha1.Error {
-	return v1alpha1.Error{
-		Type:   v1alpha1.INTERNAL,
-		Title:  httperror.InternalTitle,
-		Detail: util.Ptr("volume API not implemented"),
-	}
+func (h *Handler) ListVolumes(ctx context.Context, req oapigen.ListVolumesRequestObject) (oapigen.ListVolumesResponseObject, error) {
+	return h.volume.ListVolumes(ctx, req)
 }
 
-func (h *Handler) ListVolumes(_ context.Context, _ oapigen.ListVolumesRequestObject) (oapigen.ListVolumesResponseObject, error) {
-	err := notImplemented()
-	return oapigen.ListVolumes500ApplicationProblemPlusJSONResponse(err), nil
+func (h *Handler) CreateVolume(ctx context.Context, req oapigen.CreateVolumeRequestObject) (oapigen.CreateVolumeResponseObject, error) {
+	return h.volume.CreateVolume(ctx, req)
 }
 
-func (h *Handler) CreateVolume(_ context.Context, _ oapigen.CreateVolumeRequestObject) (oapigen.CreateVolumeResponseObject, error) {
-	err := notImplemented()
-	return oapigen.CreateVolume500ApplicationProblemPlusJSONResponse(err), nil
+func (h *Handler) GetVolume(ctx context.Context, req oapigen.GetVolumeRequestObject) (oapigen.GetVolumeResponseObject, error) {
+	return h.volume.GetVolume(ctx, req)
 }
 
-func (h *Handler) GetVolume(_ context.Context, _ oapigen.GetVolumeRequestObject) (oapigen.GetVolumeResponseObject, error) {
-	err := notImplemented()
-	return oapigen.GetVolume500ApplicationProblemPlusJSONResponse(err), nil
-}
-
-func (h *Handler) DeleteVolume(_ context.Context, _ oapigen.DeleteVolumeRequestObject) (oapigen.DeleteVolumeResponseObject, error) {
-	err := notImplemented()
-	return oapigen.DeleteVolume500ApplicationProblemPlusJSONResponse(err), nil
+func (h *Handler) DeleteVolume(ctx context.Context, req oapigen.DeleteVolumeRequestObject) (oapigen.DeleteVolumeResponseObject, error) {
+	return h.volume.DeleteVolume(ctx, req)
 }

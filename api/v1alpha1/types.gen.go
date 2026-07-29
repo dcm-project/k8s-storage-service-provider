@@ -126,7 +126,7 @@ func (e VolumeMode) Valid() bool {
 	}
 }
 
-// Error RFC 7807 compliant error response
+// Error RFC 9457 compliant error response
 type Error struct {
 	// Detail Human-readable explanation specific to this occurrence
 	Detail *string `json:"detail,omitempty"`

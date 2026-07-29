@@ -140,10 +140,10 @@ authentication/authorization middleware, rate limiting.
 | REQ-HTTP-040 | The SP MUST initiate graceful shutdown on SIGINT, behaving identically to REQ-HTTP-030 | MUST | |
 | REQ-HTTP-050 | The SP MUST load configuration values from environment variables | MUST | |
 | REQ-HTTP-060 | The SP MUST log each HTTP request at INFO level including method, path, response status code, and duration | MUST | |
-| REQ-HTTP-070 | The SP MUST catch panics in HTTP handlers and return an RFC 7807 INTERNAL error response. Panics that signal intentional connection abort MUST be re-raised. If the response has already started streaming, the panic MUST be logged without writing a response body. Recovery middleware MUST be applied as the outermost middleware layer to ensure panics in any middleware are caught | MUST | |
+| REQ-HTTP-070 | The SP MUST catch panics in HTTP handlers and return an RFC 9457 INTERNAL error response. Panics that signal intentional connection abort MUST be re-raised. If the response has already started streaming, the panic MUST be logged without writing a response body. Recovery middleware MUST be applied as the outermost middleware layer to ensure panics in any middleware are caught | MUST | |
 | REQ-HTTP-080 | The SP MUST log server lifecycle events including listen address on startup | MUST | |
-| REQ-HTTP-090 | The SP MUST return 400 Bad Request with RFC 7807 error body for malformed requests | MUST | |
-| REQ-HTTP-091 | The API framework layer MUST return RFC 7807 error responses for request parsing and response serialization failures, not plain text | MUST | |
+| REQ-HTTP-090 | The SP MUST return 400 Bad Request with RFC 9457 error body for malformed requests | MUST | |
+| REQ-HTTP-091 | The API framework layer MUST return RFC 9457 error responses for request parsing and response serialization failures, not plain text | MUST | |
 | REQ-HTTP-110 | The SP SHOULD enforce a configurable per-request timeout, cancelling the request context after the deadline | SHOULD | |
 
 #### Configuration Introduced
@@ -215,7 +215,7 @@ authentication/authorization middleware, rate limiting.
 - **Validates:** REQ-HTTP-070
 - **Given** a handler panics during request processing
 - **When** the panic is caught
-- **Then** the response MUST be HTTP 500 with RFC 7807 body (type=INTERNAL)
+- **Then** the response MUST be HTTP 500 with RFC 9457 body (type=INTERNAL)
 - **And** the panic and stack trace MUST be logged at ERROR level
 - **And** panics that signal intentional connection abort MUST be re-raised
 - **And** if the response has already started streaming, a warning MUST be logged without writing a response body
@@ -225,14 +225,14 @@ authentication/authorization middleware, rate limiting.
 - **Validates:** REQ-HTTP-090
 - **Given** a request with invalid parameters (e.g., malformed query params)
 - **When** the request reaches the router
-- **Then** the SP MUST return a 400 Bad Request with an RFC 7807 error body
+- **Then** the SP MUST return a 400 Bad Request with an RFC 9457 error body
 
 ##### AC-HTTP-091: Framework-layer error responses
 
 - **Validates:** REQ-HTTP-091
 - **Given** the API framework layer encounters a request parsing or response serialization failure
 - **When** an error response is generated
-- **Then** the error response MUST be RFC 7807 with `Content-Type: application/problem+json`
+- **Then** the error response MUST be RFC 9457 with `Content-Type: application/problem+json`
 - **And** INTERNAL errors MUST NOT expose implementation details
 
 ##### AC-HTTP-110: Request timeout
@@ -334,7 +334,7 @@ Out of scope: NATS connectivity checks, readiness vs liveness distinction
 
 Implement all volume operations defined in the OpenAPI specification. Wire each
 endpoint to the `VolumeRepository` interface (§4.4, REQ-STR-*). Map store and
-validation errors to RFC 7807 responses.
+validation errors to RFC 9457 responses.
 
 The portable contract is `StorageSpec` in the create request `Volume.spec`;
 responses use the full `Volume` resource with read-only `id`, `path`, `status`,
@@ -367,7 +367,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 | REQ-API-210 | DELETE `/api/v1alpha1/volumes/{volume_id}` MUST return 204 when delete is accepted | MUST | |
 | REQ-API-211 | A GET request for a deleted volume MUST return 404 Not Found | MUST | |
 | REQ-API-220 | DELETE MUST return 404 when the volume does not exist | MUST | |
-| REQ-API-230 | All error responses MUST use `Content-Type: application/problem+json` and RFC 7807 `Error` schema with at minimum `type` and `title` fields | MUST | |
+| REQ-API-230 | All error responses MUST use `Content-Type: application/problem+json` and RFC 9457 `Error` schema with at minimum `type` and `title` fields | MUST | |
 | REQ-API-231 | Error types MUST map to appropriate HTTP status codes per the error mapping table | MUST | |
 | REQ-API-240 | `provider_hints` MUST be accepted on input; `provider_hints.kubernetes.storage_class`, `volume_mode`, and `access_mode` are acted on in v1 | MUST | DD-020 |
 
@@ -378,6 +378,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 | Invalid request body / validation | 400 | INVALID_ARGUMENT |
 | Volume not found | 404 | NOT_FOUND |
 | PVC name already exists | 409 | ALREADY_EXISTS |
+| Multiple PVCs share same instance ID (Get/Delete) | 422 | FAILED_PRECONDITION |
 | StorageClass missing | 422 | FAILED_PRECONDITION |
 | Unexpected error | 500 | INTERNAL |
 
@@ -422,7 +423,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **Validates:** REQ-API-100
 - **Given** a PVC named `app-data` already exists in the configured namespace
 - **When** POST is called with `metadata.name: app-data`
-- **Then** the response MUST be 409 Conflict with an RFC 7807 error body
+- **Then** the response MUST be 409 Conflict with an RFC 9457 error body
 - **And** the existing PVC MUST NOT be modified
 
 ##### AC-API-021: Create volume — validation failure
@@ -430,7 +431,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **Validates:** REQ-API-060, REQ-API-070
 - **Given** a request body missing required fields (e.g., no `capacity`) or with an invalid `metadata.name`
 - **When** POST is called
-- **Then** the response MUST be 400 Bad Request with an RFC 7807 error body
+- **Then** the response MUST be 400 Bad Request with an RFC 9457 error body
 
 ##### AC-API-022: Create volume — StorageClass not found
 
@@ -475,7 +476,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **Validates:** REQ-API-150
 - **Given** no volume with id `nonexistent-volume-id` exists
 - **When** GET is called with that `volume_id`
-- **Then** the response MUST be 404 Not Found with an RFC 7807 error body
+- **Then** the response MUST be 404 Not Found with an RFC 9457 error body
 
 ##### AC-API-060: Delete volume — success
 
@@ -490,7 +491,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **Validates:** REQ-API-220
 - **Given** no volume with the given `volume_id` exists
 - **When** DELETE is called
-- **Then** the response MUST be 404 Not Found with an RFC 7807 error body
+- **Then** the response MUST be 404 Not Found with an RFC 9457 error body
 
 ##### AC-API-070: Error response format
 
@@ -569,7 +570,7 @@ Out of scope: creating StorageClasses, CSI drivers, Pods, or workload mounts.
 | REQ-K8S-160 | User-supplied `metadata.labels` MUST NOT use reserved DCM label keys | MUST | §5.1 |
 | REQ-K8S-170 | Volume status in API responses MUST be derived from PVC phase and conditions (see §4.5 status mapping) | MUST | |
 | REQ-K8S-180 | List operations MUST support pagination over DCM-managed PVCs in the configured namespace, mapping results to `page_token` / `next_page_token` | MUST | |
-| REQ-K8S-190 | Get and Delete MUST return a conflict error when multiple PVCs match the same `dcm-instance-id` label | MUST | |
+| REQ-K8S-190 | Get and Delete MUST return 422 with `FAILED_PRECONDITION` when multiple PVCs match the same `dcm-instance-id` label | MUST | |
 | REQ-K8S-200 | The SP MUST support authentication via kubeconfig file when `SP_K8S_KUBECONFIG` is set | MUST | |
 | REQ-K8S-210 | The SP MUST support in-cluster service account authentication when `SP_K8S_KUBECONFIG` is unset | MUST | |
 
@@ -1190,26 +1191,26 @@ Client may supply `?id=` on POST (AEP-122); otherwise the server generates an ID
 
 ### 5.3 Error Handling
 
-All API errors use RFC 7807 (`application/problem+json`). The `type` field uses
+All API errors use RFC 9457 (`application/problem+json`). The `type` field uses
 the enumerated codes in the OpenAPI `Error` schema.
 
 #### Requirements
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| REQ-XC-ERR-010 | All HTTP error responses MUST conform to RFC 7807 using the `Error` schema defined in the OpenAPI spec | MUST | REQ-API-230 |
+| REQ-XC-ERR-010 | All HTTP error responses MUST conform to RFC 9457 using the `Error` schema defined in the OpenAPI spec | MUST | REQ-API-230 |
 | REQ-XC-ERR-020 | Error responses MUST set `Content-Type: application/problem+json` | MUST | |
 | REQ-XC-ERR-030 | Error responses SHOULD include `detail` and `instance` fields. The `instance` field SHOULD be the request URI | SHOULD | |
 | REQ-XC-ERR-040 | Error responses for INTERNAL errors MUST NOT expose implementation details such as stack traces, panic messages, raw dependency error strings, file paths, or memory addresses | MUST | REQ-HTTP-070 |
 
 #### Acceptance Criteria
 
-##### AC-XC-ERR-010: RFC 7807 compliance
+##### AC-XC-ERR-010: RFC 9457 compliance
 
 - **Validates:** REQ-XC-ERR-010
 - **Given** any error condition in the API
 - **When** an error response is returned
-- **Then** the body MUST conform to the RFC 7807 `Error` schema with at minimum `type` and `title` fields
+- **Then** the body MUST conform to the RFC 9457 `Error` schema with at minimum `type` and `title` fields
 
 ##### AC-XC-ERR-020: Error content type
 

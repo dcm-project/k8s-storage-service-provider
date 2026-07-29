@@ -168,6 +168,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '422':
+          description: Multiple PVCs match the volume instance ID
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           description: Internal server error
           content:
@@ -188,6 +194,12 @@ paths:
           description: Volume deleted successfully
         '404':
           description: Volume not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Multiple PVCs match the volume instance ID
           content:
             application/problem+json:
               schema:
@@ -412,7 +424,7 @@ components:
 
     Error:
       type: object
-      description: RFC 7807 compliant error response
+      description: RFC 9457 compliant error response
       required:
         - type
         - title

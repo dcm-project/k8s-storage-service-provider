@@ -516,6 +516,20 @@ func (response DeleteVolume404ApplicationProblemPlusJSONResponse) VisitDeleteVol
 	return err
 }
 
+type DeleteVolume422ApplicationProblemPlusJSONResponse Error
+
+func (response DeleteVolume422ApplicationProblemPlusJSONResponse) VisitDeleteVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteVolume500ApplicationProblemPlusJSONResponse Error
 
 func (response DeleteVolume500ApplicationProblemPlusJSONResponse) VisitDeleteVolumeResponse(w http.ResponseWriter) error {
@@ -562,6 +576,20 @@ func (response GetVolume404ApplicationProblemPlusJSONResponse) VisitGetVolumeRes
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolume422ApplicationProblemPlusJSONResponse Error
+
+func (response GetVolume422ApplicationProblemPlusJSONResponse) VisitGetVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
 	_, err := buf.WriteTo(w)
 	return err
 }

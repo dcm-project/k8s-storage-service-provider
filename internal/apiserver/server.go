@@ -32,7 +32,7 @@ type Server struct {
 }
 
 // newBadRequestHandler returns a handler that writes a 400 Bad Request
-// response with an RFC 7807 application/problem+json body. It is used
+// response with an RFC 9457 application/problem+json body. It is used
 // by the parameter binding layer (generated chi wrapper) and OpenAPI
 // validation middleware.
 func newBadRequestHandler(logger *slog.Logger) func(http.ResponseWriter, *http.Request, error) {
@@ -43,13 +43,13 @@ func newBadRequestHandler(logger *slog.Logger) func(http.ResponseWriter, *http.R
 }
 
 // NewRequestErrorHandler returns an error handler for the strict adapter's
-// RequestErrorHandlerFunc that writes an RFC 7807 INVALID_ARGUMENT response.
+// RequestErrorHandlerFunc that writes an RFC 9457 INVALID_ARGUMENT response.
 func NewRequestErrorHandler(logger *slog.Logger) func(http.ResponseWriter, *http.Request, error) {
 	return newBadRequestHandler(logger)
 }
 
 // NewResponseErrorHandler returns an error handler for the strict adapter's
-// ResponseErrorHandlerFunc that writes an RFC 7807 INTERNAL response without
+// ResponseErrorHandlerFunc that writes an RFC 9457 INTERNAL response without
 // exposing implementation details.
 func NewResponseErrorHandler(logger *slog.Logger) func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
@@ -59,7 +59,7 @@ func NewResponseErrorHandler(logger *slog.Logger) func(http.ResponseWriter, *htt
 }
 
 // requestInstance returns a pointer to the request URI (path + query string)
-// for use as the RFC 7807 instance field. Returns nil if the request is nil.
+// for use as the RFC 9457 instance field. Returns nil if the request is nil.
 func requestInstance(r *http.Request) *string {
 	if r == nil {
 		return nil
@@ -195,7 +195,7 @@ func (w *statusRecordingResponseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
-// recoveryMiddleware catches panics and returns an RFC 7807
+// recoveryMiddleware catches panics and returns an RFC 9457
 // application/problem+json response instead of a plain-text stack trace.
 //
 // Special cases:
@@ -218,7 +218,7 @@ func recoveryMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 					logger.Error("panic recovered", "panic", rec, "stack", string(debug.Stack()))
 
 					if sw.wroteHeader {
-						logger.Warn("headers already sent, cannot write RFC 7807 response")
+						logger.Warn("headers already sent, cannot write RFC 9457 response")
 						return
 					}
 
