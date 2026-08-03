@@ -40,15 +40,16 @@ type KubernetesConfig struct {
 	DefaultAccessMode   string `env:"DEFAULT_ACCESS_MODE" envDefault:"ReadWriteOnce"`
 }
 
-// NATSConfig holds NATS connection settings (required when monitoring is enabled).
+// NATSConfig holds NATS connection settings.
 type NATSConfig struct {
-	URL string `env:"URL"`
+	URL string `env:"URL,notEmpty"`
 }
 
 // MonitoringConfig holds status monitoring settings.
 type MonitoringConfig struct {
-	DebounceMs   int           `env:"DEBOUNCE_MS"   envDefault:"500"`
-	ResyncPeriod time.Duration `env:"RESYNC_PERIOD" envDefault:"10m"`
+	DebounceMs         int           `env:"DEBOUNCE_MS"          envDefault:"500"`
+	ResyncPeriod       time.Duration `env:"RESYNC_PERIOD"        envDefault:"10m"`
+	PublishMaxAttempts int           `env:"PUBLISH_MAX_ATTEMPTS" envDefault:"5"`
 }
 
 // Config is the root configuration for the service provider.

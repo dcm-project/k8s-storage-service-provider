@@ -27,6 +27,9 @@ var _ = Describe("Configuration", func() {
 		_ = os.Unsetenv("SP_SERVER_REQUEST_TIMEOUT")
 		_ = os.Unsetenv("SP_K8S_DEFAULT_STORAGE_CLASS")
 		_ = os.Unsetenv("SP_K8S_DEFAULT_ACCESS_MODE")
+		_ = os.Unsetenv("SP_MONITOR_PUBLISH_MAX_ATTEMPTS")
+		_ = os.Unsetenv("SP_MONITOR_DEBOUNCE_MS")
+		_ = os.Unsetenv("SP_MONITOR_RESYNC_PERIOD")
 	}
 
 	BeforeEach(func() {
@@ -41,6 +44,7 @@ var _ = Describe("Configuration", func() {
 		_ = os.Setenv("SP_NAME", "test-sp")
 		_ = os.Setenv("SP_ENDPOINT", "https://test.example.com")
 		_ = os.Setenv("DCM_REGISTRATION_URL", "https://dcm.example.com")
+		_ = os.Setenv("SP_NATS_URL", "nats://test:4222")
 	}
 
 	It("loads configuration from environment variables", func() {
@@ -64,12 +68,38 @@ var _ = Describe("Configuration", func() {
 		Expect(cfg.Server.Address).To(Equal(":8080"))
 		Expect(cfg.Kubernetes.DefaultAccessMode).To(Equal("ReadWriteOnce"))
 		Expect(cfg.Server.ShutdownTimeout).To(Equal(15 * time.Second))
+		Expect(cfg.Monitoring.PublishMaxAttempts).To(Equal(5))
+		Expect(cfg.Monitoring.DebounceMs).To(Equal(500))
+	})
+
+	It("loads SP_MONITOR_PUBLISH_MAX_ATTEMPTS override", func() {
+		setRequiredEnv()
+		_ = os.Setenv("SP_MONITOR_PUBLISH_MAX_ATTEMPTS", "3")
+
+		cfg, err := config.Load()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cfg.Monitoring.PublishMaxAttempts).To(Equal(3))
 	})
 
 	It("returns error when required fields are missing", func() {
 		cfg, err := config.Load()
 		Expect(err).To(HaveOccurred())
 		Expect(cfg).To(BeNil())
+		errMsg := err.Error()
+		Expect(errMsg).To(ContainSubstring("SP_NAME"))
+		Expect(errMsg).To(ContainSubstring("SP_ENDPOINT"))
+		Expect(errMsg).To(ContainSubstring("DCM_REGISTRATION_URL"))
+		Expect(errMsg).To(ContainSubstring("SP_NATS_URL"))
+	})
+
+	It("returns error when SP_NATS_URL is missing", func() {
+		setRequiredEnv()
+		_ = os.Unsetenv("SP_NATS_URL")
+
+		cfg, err := config.Load()
+		Expect(err).To(HaveOccurred())
+		Expect(cfg).To(BeNil())
+		Expect(err.Error()).To(ContainSubstring("SP_NATS_URL"))
 	})
 
 	It("returns error when default access mode is invalid", func() {

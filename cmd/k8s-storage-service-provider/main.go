@@ -17,6 +17,7 @@ import (
 	"github.com/dcm-project/k8s-storage-service-provider/internal/handlers/health"
 	"github.com/dcm-project/k8s-storage-service-provider/internal/handlers/volume"
 	k8s "github.com/dcm-project/k8s-storage-service-provider/internal/kubernetes"
+	"github.com/dcm-project/k8s-storage-service-provider/internal/monitoring"
 	"github.com/dcm-project/k8s-storage-service-provider/internal/registration"
 )
 
@@ -50,6 +51,12 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("failed to create registrar: %w", err)
 	}
 
+	publisher, err := monitoring.NewNATSPublisher(cfg.NATS.URL, cfg.Provider.Name, logger)
+	if err != nil {
+		return fmt.Errorf("creating NATS publisher: %w", err)
+	}
+	defer func() { _ = publisher.Close() }()
+
 	k8sClient, err := k8s.NewClient(cfg.Kubernetes.Kubeconfig)
 	if err != nil {
 		return fmt.Errorf("creating kubernetes client: %w", err)
@@ -61,6 +68,14 @@ func run(logger *slog.Logger) error {
 	}
 	store := k8s.NewK8sVolumeStore(k8sClient, k8sCfg, logger)
 
+	monitorCfg := monitoring.MonitorConfig{
+		Namespace:          cfg.Kubernetes.Namespace,
+		DebounceMs:         cfg.Monitoring.DebounceMs,
+		ResyncPeriod:       cfg.Monitoring.ResyncPeriod,
+		PublishMaxAttempts: cfg.Monitoring.PublishMaxAttempts,
+	}
+	monitor := monitoring.NewStatusMonitor(k8sClient, monitorCfg, publisher, logger)
+
 	healthHandler := health.NewHandler(store, logger, time.Now(), version)
 	volumeHandler := volume.NewHandler(store, logger)
 	apiHandler := composite.NewHandler(healthHandler, volumeHandler)
@@ -71,6 +86,12 @@ func run(logger *slog.Logger) error {
 
 	srv := apiserver.New(cfg, logger, strictAdapter).WithOnReady(func(ctx context.Context) {
 		registrar.Start(ctx)
+		go func() {
+			if err := monitor.Start(ctx); err != nil {
+				// Status publishing will not restart until the SP is restarted.
+				logger.Error("status monitor failed; status publishing stopped", "error", err)
+			}
+		}()
 	})
 
 	return srv.Run(ctx, ln)
