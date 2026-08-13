@@ -1,5 +1,16 @@
 BINARY_NAME := k8s-storage-service-provider
 
+# CONTAINER_ENGINE: container runtime command. Set to override; otherwise auto-detect podman or docker.
+CONTAINER_ENGINE ?= $(shell \
+	if command -v podman >/dev/null 2>&1; then \
+		echo podman; \
+	elif command -v docker >/dev/null 2>&1; then \
+		echo docker; \
+	fi)
+
+CONTAINER_IMAGE_NAME ?= quay.io/dcm-project/$(BINARY_NAME)
+CONTAINER_IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+
 build:
 	CGO_ENABLED=0 go build -buildvcs=false -o bin/$(BINARY_NAME) ./cmd/$(BINARY_NAME)
 
@@ -59,4 +70,13 @@ check-generate-api: generate-api
 check-aep:
 	spectral lint --fail-severity=warn ./api/v1alpha1/openapi.yaml
 
-.PHONY: build run clean fmt vet test lint check tidy generate-types generate-spec generate-server generate-client generate-api check-generate-api check-aep
+image-build: check-container-engine
+	$(CONTAINER_ENGINE) build -f Containerfile -t $(CONTAINER_IMAGE_NAME):$(CONTAINER_IMAGE_TAG) .
+
+check-container-engine:
+	@if [ -z "$(CONTAINER_ENGINE)" ]; then \
+		echo "Error: No supported container engine found. Please install podman or docker, or set CONTAINER_ENGINE explicitly." >&2; \
+		exit 1; \
+	fi
+
+.PHONY: build run clean fmt vet test lint check tidy generate-types generate-spec generate-server generate-client generate-api check-generate-api check-aep image-build check-container-engine
