@@ -80,6 +80,43 @@ var _ = Describe("Status Monitor", func() {
 			}, 400*time.Millisecond, 50*time.Millisecond).Should(Equal(eventsBefore))
 		})
 
+		It("should flush debounced status on shutdown when monitor ctx is cancelled", func() {
+			cfg.DebounceMs = 10_000
+			cfg.ShutdownPublishTimeout = 50 * time.Millisecond
+			publisher := newCancellingMockPublisher()
+			monitor := monitoring.NewStatusMonitor(client, cfg, publisher, logger)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			errCh := make(chan error, 1)
+			go func() {
+				defer GinkgoRecover()
+				errCh <- monitor.Start(ctx)
+			}()
+
+			// Allow initial cache sync on an empty namespace before adding a PVC.
+			time.Sleep(500 * time.Millisecond)
+
+			_, err := client.CoreV1().PersistentVolumeClaims("default").Create(context.Background(),
+				testPVC("flush-on-stop", "flush-id", corev1.ClaimBound), metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Informer should queue a debounced RUNNING event; long debounce prevents publish.
+			Consistently(func() int {
+				return len(publisher.Events())
+			}, 300*time.Millisecond, 50*time.Millisecond).Should(Equal(0))
+
+			// Wait past ShutdownPublishTimeout so a boot-time flush context would already
+			// be expired; flush must still publish using a shutdown-scoped context.
+			time.Sleep(100 * time.Millisecond)
+
+			cancel()
+			Eventually(errCh, 2*time.Second).Should(Receive(BeNil()))
+
+			Eventually(publisher.Events, 2*time.Second, 50*time.Millisecond).Should(HaveLen(1))
+			Expect(publisher.Events()[0].InstanceID).To(Equal("flush-id"))
+			Expect(publisher.Events()[0].Status).To(Equal(v1alpha1.RUNNING))
+		})
+
 		It("should re-evaluate resources on cache resync without republishing unchanged status (TC-I051)", func() {
 			// client-go SharedInformer minimum resync is 1s; values below are raised with a warning.
 			cfg.ResyncPeriod = time.Second

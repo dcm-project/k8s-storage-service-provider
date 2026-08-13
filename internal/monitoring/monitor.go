@@ -17,6 +17,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+const shutdownPublishTimeout = 30 * time.Second
+
 // StatusMonitor watches PVC resources (and related Warning Events) for
 // DCM-managed volumes and publishes status change events via a StatusPublisher.
 type StatusMonitor struct {
@@ -73,7 +75,13 @@ func (m *StatusMonitor) Start(ctx context.Context) error {
 	debouncer := NewDebouncer(
 		time.Duration(m.cfg.DebounceMs)*time.Millisecond,
 		func(event StatusEvent) {
-			m.publishWithRetry(ctx, event)
+			publishCtx := ctx
+			if ctx.Err() != nil {
+				var cancel context.CancelFunc
+				publishCtx, cancel = context.WithTimeout(context.Background(), m.shutdownPublishTimeout())
+				defer cancel()
+			}
+			m.publishWithRetry(publishCtx, event)
 		},
 	)
 
@@ -114,6 +122,13 @@ func (m *StatusMonitor) Start(ctx context.Context) error {
 
 	<-ctx.Done()
 	return nil
+}
+
+func (m *StatusMonitor) shutdownPublishTimeout() time.Duration {
+	if m.cfg.ShutdownPublishTimeout > 0 {
+		return m.cfg.ShutdownPublishTimeout
+	}
+	return shutdownPublishTimeout
 }
 
 func waitForCacheSync(ctx context.Context, factories ...informers.SharedInformerFactory) error {

@@ -42,3 +42,20 @@ func (m *mockStatusPublisher) Events() []monitoring.StatusEvent {
 	copy(cp, m.events)
 	return cp
 }
+
+// cancellingMockPublisher rejects Publish when ctx is already cancelled, matching
+// NATSPublisher behavior during shutdown.
+type cancellingMockPublisher struct {
+	mockStatusPublisher
+}
+
+func newCancellingMockPublisher() *cancellingMockPublisher {
+	return &cancellingMockPublisher{mockStatusPublisher: *newMockPublisher()}
+}
+
+func (m *cancellingMockPublisher) Publish(ctx context.Context, event monitoring.StatusEvent) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return m.mockStatusPublisher.Publish(ctx, event)
+}
