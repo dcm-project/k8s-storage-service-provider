@@ -349,15 +349,15 @@ Out of scope: authentication/authorization (401/403), workload attachment
 |----|-------------|----------|-------|
 | REQ-API-010 | The SP MUST implement all API operations defined in the OpenAPI specification | MUST | |
 | REQ-API-020 | POST `/api/v1alpha1/volumes` MUST accept a `Volume` body (portable fields in `spec`) and return 201 Created with a `Volume` | MUST | AEP-133 |
-| REQ-API-030 | When no `id` query parameter is provided, the server MUST generate a DCM instance ID conforming to AEP-122 | MUST | |
+| REQ-API-030 | When no `id` query parameter is provided, the server MUST use `spec.metadata.name` as the DCM instance ID | MUST | |
 | REQ-API-040 | When an `id` query parameter is provided, the server MUST use it as the DCM instance ID | MUST | |
-| REQ-API-041 | When an `id` query parameter is provided, it MUST conform to AEP-122 pattern `^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$` | MUST | |
+| REQ-API-041 | When an `id` query parameter is provided, it MUST conform to AEP-122 pattern `^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$` and MUST equal `spec.metadata.name` | MUST | |
 | REQ-API-050 | `spec.service_type` in the request MUST be `"storage"` | MUST | |
 | REQ-API-060 | POST `spec` MUST require `capacity`, `metadata.name`, and `service_type` | MUST | |
-| REQ-API-070 | `metadata.name` MUST conform to Kubernetes DNS-1123 subdomain label rules and MUST NOT exceed 63 characters | MUST | OpenAPI `maxLength: 63` |
+| REQ-API-070 | `metadata.name` MUST conform to AEP-122 and MUST NOT exceed 63 characters | MUST | OpenAPI `maxLength: 63` |
 | REQ-API-080 | Newly created volumes MUST have `status` set to `PROVISIONING` when the PVC is not yet fully bound/ready | MUST | |
 | REQ-API-090 | The create response MUST populate read-only fields: `id`, `path`, `status`, `create_time`, `update_time`, and `metadata.namespace` | MUST | |
-| REQ-API-100 | POST MUST return 409 Conflict when a PVC with the same `metadata.name` already exists in the configured namespace | MUST | |
+| REQ-API-100 | POST MUST return 409 Conflict when a volume with the same instance ID (Kubernetes PVC name) already exists in the configured namespace | MUST | |
 | REQ-API-110 | POST MUST return 422 when the requested StorageClass does not exist | MUST | |
 | REQ-API-120 | GET `/api/v1alpha1/volumes` MUST return a paginated `VolumeList` | MUST | |
 | REQ-API-121 | GET MUST return 200 OK with an empty `volumes` array when no volumes exist | MUST | |
@@ -365,6 +365,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 | REQ-API-140 | GET `/api/v1alpha1/volumes/{volume_id}` MUST return 200 with the volume when found | MUST | |
 | REQ-API-150 | GET MUST return 404 when no PVC matches the `volume_id` (`dcm-instance-id` label) | MUST | |
 | REQ-API-210 | DELETE `/api/v1alpha1/volumes/{volume_id}` MUST return 204 when delete is accepted | MUST | |
+| REQ-API-212 | DELETE MUST be idempotent: if the PVC is already removed after lookup, the operation MUST succeed with 204 | MUST | |
 | REQ-API-211 | A GET request for a deleted volume MUST return 404 Not Found | MUST | |
 | REQ-API-220 | DELETE MUST return 404 when the volume does not exist | MUST | |
 | REQ-API-230 | All error responses MUST use `Content-Type: application/problem+json` and RFC 9457 `Error` schema with at minimum `type` and `title` fields | MUST | |
@@ -377,8 +378,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 |-----------------|-------------|------------|
 | Invalid request body / validation | 400 | INVALID_ARGUMENT |
 | Volume not found | 404 | NOT_FOUND |
-| PVC name already exists | 409 | ALREADY_EXISTS |
-| Multiple PVCs share same instance ID (Get/Delete) | 422 | FAILED_PRECONDITION |
+| Volume already exists (duplicate instance ID / PVC name) | 409 | ALREADY_EXISTS |
 | StorageClass missing | 422 | FAILED_PRECONDITION |
 | Unexpected error | 500 | INTERNAL |
 
@@ -391,19 +391,26 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **When** POST `/api/v1alpha1/volumes` is called
 - **Then** the response MUST be 201 Created with a `Volume` including `status: PROVISIONING`
 
-##### AC-API-011: Create volume — server-generated ID
+##### AC-API-011: Create volume — ID derived from metadata.name
 
 - **Validates:** REQ-API-030
-- **Given** POST `/api/v1alpha1/volumes` is called without `?id=`
+- **Given** POST `/api/v1alpha1/volumes` is called without `?id=` and `metadata.name` is `app-data`
 - **When** the volume is created
-- **Then** the response MUST contain a server-generated ID as the `id` field
+- **Then** the response `id` field MUST be `"app-data"`
 
 ##### AC-API-012: Create volume — client-specified ID
 
 - **Validates:** REQ-API-040, REQ-API-041
-- **Given** POST `/api/v1alpha1/volumes?id=app-data-volume` is called
+- **Given** POST `/api/v1alpha1/volumes?id=app-data` is called with `metadata.name: app-data`
 - **When** the volume is created
-- **Then** the response `id` field MUST be `"app-data-volume"`
+- **Then** the response `id` field MUST be `"app-data"`
+
+##### AC-API-012a: Create volume — mismatched id query parameter
+
+- **Validates:** REQ-API-041
+- **Given** POST is called with `?id=other` and `metadata.name: app-data`
+- **When** the request is processed
+- **Then** the response MUST be 400 Bad Request
 
 ##### AC-API-013: Create volume — read-only fields
 
@@ -411,7 +418,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **Given** a volume is created successfully
 - **When** the response is returned
 - **Then** the following fields MUST be populated:
-  - `id`: server-generated or client-specified DCM instance ID (AEP-122)
+  - `id`: DCM instance ID (AEP-122), equal to `metadata.name`
   - `path`: `"volumes/{volume_id}"`
   - `status`: `"PROVISIONING"` (when PVC is not yet fully bound/ready)
   - `create_time`: current timestamp
@@ -493,6 +500,13 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **When** DELETE is called
 - **Then** the response MUST be 404 Not Found with an RFC 9457 error body
 
+##### AC-API-062: Delete volume — idempotent when PVC already removed
+
+- **Validates:** REQ-API-212
+- **Given** a DCM-managed volume exists and the PVC is deleted before the Kubernetes delete call completes
+- **When** DELETE is called
+- **Then** the response MUST be 204 No Content
+
 ##### AC-API-070: Error response format
 
 - **Validates:** REQ-API-230
@@ -539,7 +553,7 @@ Out of scope: creating StorageClasses, CSI drivers, Pods, or workload mounts.
 |----|-------------|----------|-------|
 | REQ-STR-010 | The SP MUST define a `VolumeRepository` interface with Create, Get, List, Delete, and CheckHealth operations | MUST | DD-040 |
 | REQ-STR-020 | The Create operation MUST return the created `Volume` with all server-generated read-only fields populated | MUST | |
-| REQ-STR-030 | The Create operation MUST return a conflict error if a volume with the same `metadata.name` or instance ID already exists | MUST | |
+| REQ-STR-030 | The Create operation MUST return a conflict error if a volume with the same instance ID (PVC name) already exists | MUST | |
 | REQ-STR-040 | The Get operation MUST return the matching `Volume` for a valid `volume_id`, or a not-found error if no match exists | MUST | |
 | REQ-STR-050 | The List operation MUST accept pagination parameters (`max_page_size`, `page_token`) and return a paginated `VolumeList` | MUST | |
 | REQ-STR-060 | The List operation MUST default to `max_page_size=50` when not specified | MUST | |
@@ -570,7 +584,6 @@ Out of scope: creating StorageClasses, CSI drivers, Pods, or workload mounts.
 | REQ-K8S-160 | User-supplied `metadata.labels` MUST NOT use reserved DCM label keys | MUST | §5.1 |
 | REQ-K8S-170 | Volume status in API responses MUST be derived from PVC phase and conditions (see §4.5 status mapping) | MUST | |
 | REQ-K8S-180 | List operations MUST support pagination over DCM-managed PVCs in the configured namespace, mapping results to `page_token` / `next_page_token` | MUST | |
-| REQ-K8S-190 | Get and Delete MUST return 422 with `FAILED_PRECONDITION` when multiple PVCs match the same `dcm-instance-id` label | MUST | |
 | REQ-K8S-200 | The SP MUST support authentication via kubeconfig file when `SP_K8S_KUBECONFIG` is set | MUST | |
 | REQ-K8S-210 | The SP MUST support in-cluster service account authentication when `SP_K8S_KUBECONFIG` is unset | MUST | |
 
@@ -775,13 +788,6 @@ No portable-to-K8s translation layer is required.
 - **Given** a PVC has a `deletionTimestamp`
 - **When** Get is called
 - **Then** `status` MUST be `DELETING`
-
-##### AC-K8S-170: Multiple PVC conflict
-
-- **Validates:** REQ-K8S-190
-- **Given** two PVCs share the same `dcm.project/dcm-instance-id` label
-- **When** Get or Delete is called with that instance ID
-- **Then** a conflict error MUST be returned
 
 #### Dependencies
 
@@ -1159,34 +1165,34 @@ Reserved label keys (MUST NOT be set by callers in `metadata.labels`):
 
 | Field | Source |
 |-------|--------|
-| `id` / `volume_id` | DCM instance ID (`dcm-instance-id` label), AEP-122 format |
-| `metadata.name` | Kubernetes PVC name (DNS-1123 subdomain) |
+| `id` / `volume_id` | DCM instance ID (`dcm-instance-id` label), AEP-122 format; equals Kubernetes PVC name |
+| `metadata.name` | Same value as `id` (AEP-122); used as the Kubernetes PVC name |
 | `path` | `volumes/{volume_id}` |
 
-Client may supply `?id=` on POST (AEP-122); otherwise the server generates an ID.
+Client may supply `?id=` on POST (AEP-122); when omitted, `id` is taken from
+`metadata.name`. When `?id=` is provided, it MUST equal `metadata.name`.
 
 #### Requirements
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| REQ-XC-ID-010 | Two identifiers MUST be used for volume resources: `id` (DCM instance ID in AEP-122 format, used in URL paths and stored as `dcm.project/dcm-instance-id` label) and `metadata.name` (used as the Kubernetes PVC name) | MUST | |
-| REQ-XC-ID-020 | Conflict detection on create MUST be based on `metadata.name`, not `id`. Both uniqueness constraints apply independently | MUST | REQ-API-100 |
+| REQ-XC-ID-010 | Volume resources MUST use a single identifier: `id` (DCM instance ID in AEP-122 format, used in URL paths, stored as `dcm.project/dcm-instance-id` label, and as the Kubernetes PVC name) equal to `metadata.name` | MUST | |
+| REQ-XC-ID-020 | Conflict detection on create MUST be based on duplicate instance ID (Kubernetes PVC name) | MUST | REQ-API-100 |
 
 #### Acceptance Criteria
 
-##### AC-XC-ID-010: Dual identifier usage
+##### AC-XC-ID-010: Single identifier usage
 
 - **Validates:** REQ-XC-ID-010
-- **Given** a volume is created with id `app-data-volume` and `metadata.name` `app-data`
+- **Given** a volume is created with `metadata.name` `app-data`
 - **When** the PVC is stored
-- **Then** `id` MUST be used in URL paths (`/volumes/{volume_id}`) and as the `dcm.project/dcm-instance-id` label
-- **And** `metadata.name` MUST be the Kubernetes PVC name `app-data`
+- **Then** `id` MUST be `app-data`, used in URL paths (`/volumes/{volume_id}`), as the `dcm.project/dcm-instance-id` label, and as the Kubernetes PVC name
 
-##### AC-XC-ID-020: Conflict detection based on metadata.name
+##### AC-XC-ID-020: Conflict detection on duplicate name
 
 - **Validates:** REQ-XC-ID-020
 - **Given** a volume with `metadata.name` `app-data` already exists
-- **When** a new volume with a different `id` but the same `metadata.name` `app-data` is created
+- **When** a new create request uses `metadata.name` `app-data`
 - **Then** the request MUST be rejected with a conflict error
 
 ### 5.3 Error Handling

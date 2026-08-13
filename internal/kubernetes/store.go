@@ -3,12 +3,12 @@ package kubernetes
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	v1alpha1 "github.com/dcm-project/k8s-storage-service-provider/api/v1alpha1"
 	"github.com/dcm-project/k8s-storage-service-provider/internal/store"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -42,19 +42,17 @@ func (s *K8sVolumeStore) CheckHealth(_ context.Context) error {
 }
 
 func (s *K8sVolumeStore) findPVC(ctx context.Context, volumeID string) (*corev1.PersistentVolumeClaim, error) {
-	pvcs, err := s.client.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: instanceSelector(volumeID),
-	})
+	pvc, err := s.client.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Get(ctx, volumeID, metav1.GetOptions{})
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, &store.NotFoundError{ID: volumeID}
+		}
 		return nil, err
 	}
-	if len(pvcs.Items) == 0 {
+	if !isDCMManagedPVC(pvc, volumeID) {
 		return nil, &store.NotFoundError{ID: volumeID}
 	}
-	if len(pvcs.Items) > 1 {
-		return nil, &store.ConflictError{Message: fmt.Sprintf("multiple PVCs found for volume %q", volumeID)}
-	}
-	return &pvcs.Items[0], nil
+	return pvc, nil
 }
 
 func (s *K8sVolumeStore) buildVolume(pvc *corev1.PersistentVolumeClaim, instanceID string) *v1alpha1.Volume {

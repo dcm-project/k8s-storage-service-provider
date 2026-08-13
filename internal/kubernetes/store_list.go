@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	v1alpha1 "github.com/dcm-project/k8s-storage-service-provider/api/v1alpha1"
-	"github.com/dcm-project/k8s-storage-service-provider/internal/dcm"
 	"github.com/dcm-project/k8s-storage-service-provider/internal/store"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,8 +43,10 @@ func (s *K8sVolumeStore) List(ctx context.Context, maxPageSize int32, pageToken 
 	volumes := make([]v1alpha1.Volume, 0, len(pvcs.Items))
 	for i := range pvcs.Items {
 		pvc := &pvcs.Items[i]
-		instanceID := pvc.Labels[dcm.LabelInstanceID]
-		volumes = append(volumes, *s.buildVolume(pvc, instanceID))
+		if !isDCMManagedPVC(pvc, pvc.Name) {
+			continue
+		}
+		volumes = append(volumes, *s.buildVolume(pvc, pvc.Name))
 	}
 
 	result := &v1alpha1.VolumeList{

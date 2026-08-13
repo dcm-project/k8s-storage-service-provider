@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"context"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -12,5 +13,9 @@ func (s *K8sVolumeStore) Delete(ctx context.Context, volumeID string) error {
 	if err != nil {
 		return err
 	}
-	return s.client.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Delete(ctx, pvc.Name, metav1.DeleteOptions{})
+	err = s.client.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Delete(ctx, pvc.Name, metav1.DeleteOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
 }

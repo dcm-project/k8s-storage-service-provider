@@ -117,16 +117,18 @@ var _ = Describe("Volume API Handlers", func() {
 			Expect(created.Id).NotTo(BeNil())
 		})
 
-		It("uses client-specified id", func() {
+		It("uses client-specified id when it matches metadata.name", func() {
 			var capturedID string
 			repo.CreateFunc = func(_ context.Context, spec v1alpha1.StorageSpec, id string) (*v1alpha1.Volume, error) {
 				capturedID = id
 				return newVolumeResult(spec, id), nil
 			}
 
+			spec := validCreateSpec()
+			spec.Metadata.Name = "app-data-volume"
 			resp, err := h.CreateVolume(context.Background(), oapigen.CreateVolumeRequestObject{
 				Params: v1alpha1.CreateVolumeParams{Id: util.Ptr("app-data-volume")},
-				Body:   &v1alpha1.Volume{Spec: validCreateSpec()},
+				Body:   &v1alpha1.Volume{Spec: spec},
 			})
 			Expect(err).NotTo(HaveOccurred())
 			_, ok := resp.(oapigen.CreateVolume201JSONResponse)
@@ -134,7 +136,7 @@ var _ = Describe("Volume API Handlers", func() {
 			Expect(capturedID).To(Equal("app-data-volume"))
 		})
 
-		It("generates an AEP-122 ID when no id query param (REQ-API-030)", func() {
+		It("derives id from metadata.name when no id query param (REQ-API-030)", func() {
 			var capturedID string
 			repo.CreateFunc = func(_ context.Context, spec v1alpha1.StorageSpec, id string) (*v1alpha1.Volume, error) {
 				capturedID = id
@@ -147,12 +149,20 @@ var _ = Describe("Volume API Handlers", func() {
 			Expect(err).NotTo(HaveOccurred())
 			created, ok := resp.(oapigen.CreateVolume201JSONResponse)
 			Expect(ok).To(BeTrue())
-			Expect(capturedID).NotTo(BeEmpty())
-			Expect(capturedID).To(HaveLen(26))
-			Expect(capturedID).To(MatchRegexp(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`))
-			Expect(capturedID).NotTo(MatchRegexp(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`))
+			Expect(capturedID).To(Equal("app-data"))
 			Expect(created.Id).NotTo(BeNil())
-			Expect(*created.Id).To(Equal(capturedID))
+			Expect(*created.Id).To(Equal("app-data"))
+		})
+
+		It("returns 400 when id query param does not match metadata.name", func() {
+			resp, err := h.CreateVolume(context.Background(), oapigen.CreateVolumeRequestObject{
+				Params: v1alpha1.CreateVolumeParams{Id: util.Ptr("other-id")},
+				Body:   &v1alpha1.Volume{Spec: validCreateSpec()},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			errResp, ok := resp.(oapigen.CreateVolume400ApplicationProblemPlusJSONResponse)
+			Expect(ok).To(BeTrue())
+			Expect(*errResp.Detail).To(ContainSubstring("must match metadata.name"))
 		})
 
 		It("returns 409 on conflict (TC-U061)", func() {
@@ -199,9 +209,12 @@ var _ = Describe("Volume API Handlers", func() {
 		})
 
 		It("rejects reserved health volume ID", func() {
+			spec := validCreateSpec()
+			spec.Metadata.Name = "health"
+
 			resp, err := h.CreateVolume(context.Background(), oapigen.CreateVolumeRequestObject{
 				Params: v1alpha1.CreateVolumeParams{Id: util.Ptr("health")},
-				Body:   &v1alpha1.Volume{Spec: validCreateSpec()},
+				Body:   &v1alpha1.Volume{Spec: spec},
 			})
 			Expect(err).NotTo(HaveOccurred())
 			errResp, ok := resp.(oapigen.CreateVolume400ApplicationProblemPlusJSONResponse)
@@ -261,20 +274,6 @@ var _ = Describe("Volume API Handlers", func() {
 			Expect(errResp.Status).NotTo(BeNil())
 			Expect(*errResp.Status).To(Equal(int32(404)))
 		})
-
-		It("returns 422 on ambiguous instance ID (AC-K8S-170)", func() {
-			repo.GetFunc = func(_ context.Context, id string) (*v1alpha1.Volume, error) {
-				return nil, &store.ConflictError{Message: "multiple PVCs found for volume " + id}
-			}
-
-			resp, err := h.GetVolume(context.Background(), oapigen.GetVolumeRequestObject{VolumeId: "dup"})
-			Expect(err).NotTo(HaveOccurred())
-			errResp, ok := resp.(oapigen.GetVolume422ApplicationProblemPlusJSONResponse)
-			Expect(ok).To(BeTrue())
-			Expect(errResp.Type).To(Equal(v1alpha1.FAILEDPRECONDITION))
-			Expect(errResp.Status).NotTo(BeNil())
-			Expect(*errResp.Status).To(Equal(int32(422)))
-		})
 	})
 
 	Describe("ListVolumes", func() {
@@ -328,20 +327,6 @@ var _ = Describe("Volume API Handlers", func() {
 			Expect(errResp.Type).To(Equal(v1alpha1.NOTFOUND))
 			Expect(errResp.Status).NotTo(BeNil())
 			Expect(*errResp.Status).To(Equal(int32(404)))
-		})
-
-		It("returns 422 on ambiguous instance ID (AC-K8S-170)", func() {
-			repo.DeleteFunc = func(_ context.Context, id string) error {
-				return &store.ConflictError{Message: "multiple PVCs found for volume " + id}
-			}
-
-			resp, err := h.DeleteVolume(context.Background(), oapigen.DeleteVolumeRequestObject{VolumeId: "dup"})
-			Expect(err).NotTo(HaveOccurred())
-			errResp, ok := resp.(oapigen.DeleteVolume422ApplicationProblemPlusJSONResponse)
-			Expect(ok).To(BeTrue())
-			Expect(errResp.Type).To(Equal(v1alpha1.FAILEDPRECONDITION))
-			Expect(errResp.Status).NotTo(BeNil())
-			Expect(*errResp.Status).To(Equal(int32(422)))
 		})
 	})
 })

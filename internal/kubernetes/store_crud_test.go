@@ -133,11 +133,11 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 			s, client := newTestStore(defaultConfig())
 			spec := minimalVolumeSpec("app-data")
 
-			result, err := s.Create(context.Background(), spec, "vol-001")
+			result, err := s.Create(context.Background(), spec, "app-data")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).NotTo(BeNil())
-			Expect(*result.Id).To(Equal("vol-001"))
-			Expect(*result.Path).To(Equal("volumes/vol-001"))
+			Expect(*result.Id).To(Equal("app-data"))
+			Expect(*result.Path).To(Equal("volumes/app-data"))
 			Expect(*result.Status).To(Equal(v1alpha1.PROVISIONING))
 			Expect(result.Spec.Metadata.Namespace).NotTo(BeNil())
 			Expect(*result.Spec.Metadata.Namespace).To(Equal("default"))
@@ -145,7 +145,7 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 			pvc, err := client.CoreV1().PersistentVolumeClaims("default").Get(context.Background(), "app-data", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pvc.Labels).To(HaveKeyWithValue(dcm.LabelManagedBy, dcm.ValueManagedByDCM))
-			Expect(pvc.Labels).To(HaveKeyWithValue(dcm.LabelInstanceID, "vol-001"))
+			Expect(pvc.Labels).To(HaveKeyWithValue(dcm.LabelInstanceID, "app-data"))
 			Expect(pvc.Labels).To(HaveKeyWithValue(dcm.LabelServiceType, dcm.ValueServiceType))
 			Expect(pvc.Spec.AccessModes).To(Equal([]corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}))
 			Expect(pvc.Spec.Resources.Requests.Storage().String()).To(Equal("10Gi"))
@@ -166,7 +166,7 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 				},
 			}
 
-			_, err := s.Create(context.Background(), spec, "vol-hints")
+			_, err := s.Create(context.Background(), spec, "hinted-vol")
 			Expect(err).NotTo(HaveOccurred())
 
 			pvc, err := client.CoreV1().PersistentVolumeClaims("default").Get(context.Background(), "hinted-vol", metav1.GetOptions{})
@@ -184,7 +184,7 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 			s, client := newTestStore(cfg)
 			createStorageClass(client, "default-sc")
 
-			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "vol-default-sc")
+			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "app-data")
 			Expect(err).NotTo(HaveOccurred())
 
 			pvc, err := client.CoreV1().PersistentVolumeClaims("default").Get(context.Background(), "app-data", metav1.GetOptions{})
@@ -193,18 +193,26 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 			Expect(*pvc.Spec.StorageClassName).To(Equal("default-sc"))
 		})
 
-		It("returns conflict when instance ID already exists (TC-U061)", func() {
+		It("returns invalid argument when instance id does not match metadata.name", func() {
 			s, _ := newTestStore(defaultConfig())
-			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "vol-dup")
+			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "other-id")
+			Expect(err).To(HaveOccurred())
+			var invalid *store.InvalidArgumentError
+			Expect(errors.As(err, &invalid)).To(BeTrue())
+		})
+
+		It("returns conflict when volume already exists (TC-U061)", func() {
+			s, _ := newTestStore(defaultConfig())
+			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "app-data")
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = s.Create(context.Background(), minimalVolumeSpec("other-name"), "vol-dup")
+			_, err = s.Create(context.Background(), minimalVolumeSpec("app-data"), "app-data")
 			Expect(err).To(HaveOccurred())
 			var conflict *store.ConflictError
 			Expect(errors.As(err, &conflict)).To(BeTrue())
 		})
 
-		It("returns conflict when PVC name already exists", func() {
+		It("returns conflict when a non-DCM PVC with the same name already exists", func() {
 			s, client := newTestStore(defaultConfig())
 			existing := &corev1.PersistentVolumeClaim{
 				ObjectMeta: metav1.ObjectMeta{Name: "app-data", Namespace: "default"},
@@ -218,7 +226,7 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 			_, err := client.CoreV1().PersistentVolumeClaims("default").Create(context.Background(), existing, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = s.Create(context.Background(), minimalVolumeSpec("app-data"), "vol-new")
+			_, err = s.Create(context.Background(), minimalVolumeSpec("app-data"), "app-data")
 			Expect(err).To(HaveOccurred())
 			var conflict *store.ConflictError
 			Expect(errors.As(err, &conflict)).To(BeTrue())
@@ -232,7 +240,7 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 				Kubernetes: &v1alpha1.KubernetesProviderHints{StorageClass: &sc},
 			}
 
-			_, err := s.Create(context.Background(), spec, "vol-sc")
+			_, err := s.Create(context.Background(), spec, "app-data")
 			Expect(err).To(HaveOccurred())
 			var failed *store.FailedPreconditionError
 			Expect(errors.As(err, &failed)).To(BeTrue())
@@ -243,7 +251,7 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 			spec := minimalVolumeSpec("app-data")
 			spec.Capacity = "not-a-quantity"
 
-			_, err := s.Create(context.Background(), spec, "vol-bad")
+			_, err := s.Create(context.Background(), spec, "app-data")
 			Expect(err).To(HaveOccurred())
 			var invalid *store.InvalidArgumentError
 			Expect(errors.As(err, &invalid)).To(BeTrue())
@@ -257,7 +265,7 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 				Kubernetes: &v1alpha1.KubernetesProviderHints{VolumeMode: &badMode},
 			}
 
-			_, err := s.Create(context.Background(), spec, "vol-mode")
+			_, err := s.Create(context.Background(), spec, "app-data")
 			Expect(err).To(HaveOccurred())
 			var invalid *store.InvalidArgumentError
 			Expect(errors.As(err, &invalid)).To(BeTrue())
@@ -268,12 +276,12 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 	Describe("Get", func() {
 		It("returns the volume by instance ID (TC-U065)", func() {
 			s, _ := newTestStore(defaultConfig())
-			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "vol-get")
+			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "app-data")
 			Expect(err).NotTo(HaveOccurred())
 
-			got, err := s.Get(context.Background(), "vol-get")
+			got, err := s.Get(context.Background(), "app-data")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(*got.Id).To(Equal("vol-get"))
+			Expect(*got.Id).To(Equal("app-data"))
 			Expect(got.Spec.Metadata.Name).To(Equal("app-data"))
 		})
 
@@ -285,42 +293,35 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 			Expect(errors.As(err, &notFound)).To(BeTrue())
 		})
 
-		It("returns conflict when multiple PVCs share the same instance ID (AC-K8S-170)", func() {
+		It("returns not found for a PVC without DCM labels", func() {
 			s, client := newTestStore(defaultConfig())
-			labels := dcm.Labels("vol-dup")
-			for _, name := range []string{"pvc-a", "pvc-b"} {
-				pvc := &corev1.PersistentVolumeClaim{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      name,
-						Namespace: "default",
-						Labels:    labels,
+			foreign := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{Name: "foreign", Namespace: "default"},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("1Gi")},
 					},
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-						Resources: corev1.VolumeResourceRequirements{
-							Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("1Gi")},
-						},
-					},
-				}
-				_, err := client.CoreV1().PersistentVolumeClaims("default").Create(context.Background(), pvc, metav1.CreateOptions{})
-				Expect(err).NotTo(HaveOccurred())
+				},
 			}
+			_, err := client.CoreV1().PersistentVolumeClaims("default").Create(context.Background(), foreign, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
 
-			_, err := s.Get(context.Background(), "vol-dup")
+			_, err = s.Get(context.Background(), "foreign")
 			Expect(err).To(HaveOccurred())
-			var conflict *store.ConflictError
-			Expect(errors.As(err, &conflict)).To(BeTrue())
+			var notFound *store.NotFoundError
+			Expect(errors.As(err, &notFound)).To(BeTrue())
 		})
 	})
 
 	Describe("List", func() {
 		It("lists DCM-managed volumes only (TC-U063, TC-U064)", func() {
 			s, client := newTestStore(defaultConfig())
-			_, err := s.Create(context.Background(), minimalVolumeSpec("vol-a"), "id-a")
+			_, err := s.Create(context.Background(), minimalVolumeSpec("vol-a"), "vol-a")
 			Expect(err).NotTo(HaveOccurred())
-			_, err = s.Create(context.Background(), minimalVolumeSpec("vol-b"), "id-b")
+			_, err = s.Create(context.Background(), minimalVolumeSpec("vol-b"), "vol-b")
 			Expect(err).NotTo(HaveOccurred())
-			_, err = s.Create(context.Background(), minimalVolumeSpec("vol-c"), "id-c")
+			_, err = s.Create(context.Background(), minimalVolumeSpec("vol-c"), "vol-c")
 			Expect(err).NotTo(HaveOccurred())
 
 			foreign := &corev1.PersistentVolumeClaim{
@@ -341,10 +342,39 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 			Expect(*list.Volumes).To(HaveLen(3))
 		})
 
+		It("omits PVCs whose dcm-instance-id label does not match the PVC name", func() {
+			s, client := newTestStore(defaultConfig())
+			_, err := s.Create(context.Background(), minimalVolumeSpec("good-vol"), "good-vol")
+			Expect(err).NotTo(HaveOccurred())
+
+			badLabels := dcm.Labels("wrong-id")
+			badPVC := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bad-vol",
+					Namespace: "default",
+					Labels:    badLabels,
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("1Gi")},
+					},
+				},
+			}
+			_, err = client.CoreV1().PersistentVolumeClaims("default").Create(context.Background(), badPVC, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			list, err := s.List(context.Background(), 0, "")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(*list.Volumes).To(HaveLen(1))
+			Expect(*(*list.Volumes)[0].Id).To(Equal("good-vol"))
+		})
+
 		It("paginates with Kubernetes continue tokens", func() {
 			s, _ := newTestStore(defaultConfig())
 			for _, name := range []string{"a", "b", "c"} {
-				_, err := s.Create(context.Background(), minimalVolumeSpec("vol-"+name), "id-"+name)
+				volName := "vol-" + name
+				_, err := s.Create(context.Background(), minimalVolumeSpec(volName), volName)
 				Expect(err).NotTo(HaveOccurred())
 			}
 
@@ -371,10 +401,10 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 	Describe("Delete", func() {
 		It("deletes the PVC (TC-U069)", func() {
 			s, client := newTestStore(defaultConfig())
-			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "vol-del")
+			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "app-data")
 			Expect(err).NotTo(HaveOccurred())
 
-			err = s.Delete(context.Background(), "vol-del")
+			err = s.Delete(context.Background(), "app-data")
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err = client.CoreV1().PersistentVolumeClaims("default").Get(context.Background(), "app-data", metav1.GetOptions{})
@@ -389,31 +419,17 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 			Expect(errors.As(err, &notFound)).To(BeTrue())
 		})
 
-		It("returns conflict when multiple PVCs share the same instance ID (AC-K8S-170)", func() {
+		It("succeeds when PVC is deleted between get and delete", func() {
 			s, client := newTestStore(defaultConfig())
-			labels := dcm.Labels("vol-dup-del")
-			for _, name := range []string{"pvc-a", "pvc-b"} {
-				pvc := &corev1.PersistentVolumeClaim{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      name,
-						Namespace: "default",
-						Labels:    labels,
-					},
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-						Resources: corev1.VolumeResourceRequirements{
-							Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("1Gi")},
-						},
-					},
-				}
-				_, err := client.CoreV1().PersistentVolumeClaims("default").Create(context.Background(), pvc, metav1.CreateOptions{})
-				Expect(err).NotTo(HaveOccurred())
-			}
+			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "app-data")
+			Expect(err).NotTo(HaveOccurred())
 
-			err := s.Delete(context.Background(), "vol-dup-del")
-			Expect(err).To(HaveOccurred())
-			var conflict *store.ConflictError
-			Expect(errors.As(err, &conflict)).To(BeTrue())
+			client.PrependReactor("delete", "persistentvolumeclaims", func(clienttesting.Action) (bool, runtime.Object, error) {
+				return true, nil, apierrors.NewNotFound(schema.GroupResource{Resource: "persistentvolumeclaims"}, "app-data")
+			})
+
+			err = s.Delete(context.Background(), "app-data")
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 

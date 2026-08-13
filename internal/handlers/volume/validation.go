@@ -1,7 +1,6 @@
 package volume
 
 import (
-	"crypto/rand"
 	"fmt"
 	"regexp"
 
@@ -15,27 +14,7 @@ var reservedVolumeIDs = map[string]bool{
 	"health": true,
 }
 
-const (
-	generatedIDLength = 26
-	aep122Charset     = "abcdefghijklmnopqrstuvwxyz0123456789"
-)
-
-var (
-	aep122IDPattern     = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
-	dns1123LabelPattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
-)
-
-// generateVolumeID returns a random AEP-122 compliant DCM instance ID.
-func generateVolumeID() (string, error) {
-	b := make([]byte, generatedIDLength)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generating volume id: %w", err)
-	}
-	for i := range b {
-		b[i] = aep122Charset[int(b[i])%len(aep122Charset)]
-	}
-	return string(b), nil
-}
+var aep122IDPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 func validateVolumeID(id string) error {
 	if reservedVolumeIDs[id] {
@@ -57,13 +36,7 @@ func validateCreateSpec(spec v1alpha1.StorageSpec) error {
 	if spec.Metadata.Name == "" {
 		return fmt.Errorf("metadata.name is required")
 	}
-	if len(spec.Metadata.Name) > 63 {
-		return fmt.Errorf("metadata.name must not exceed 63 characters")
-	}
-	if !dns1123LabelPattern.MatchString(spec.Metadata.Name) {
-		return fmt.Errorf("metadata.name %q is not a valid DNS-1123 label", spec.Metadata.Name)
-	}
-	return nil
+	return validateVolumeID(spec.Metadata.Name)
 }
 
 func validateUserLabels(labels *map[string]string) error {

@@ -12,27 +12,16 @@ import (
 
 // Create creates a new volume backed by a PersistentVolumeClaim.
 func (s *K8sVolumeStore) Create(ctx context.Context, spec v1alpha1.StorageSpec, id string) (*v1alpha1.Volume, error) {
-	labels := dcmLabels(id)
+	if id != spec.Metadata.Name {
+		return nil, &store.InvalidArgumentError{
+			Message: fmt.Sprintf("instance id %q must match metadata.name %q", id, spec.Metadata.Name),
+		}
+	}
+
+	name := spec.Metadata.Name
+	labels := dcmLabels(name)
 	if spec.Metadata.Labels != nil {
 		labels = mergeLabels(labels, *spec.Metadata.Labels)
-	}
-
-	existingByID, err := s.client.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: instanceSelector(id),
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(existingByID.Items) > 0 {
-		return nil, &store.ConflictError{Message: fmt.Sprintf("volume with instance ID %q already exists", id)}
-	}
-
-	_, err = s.client.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Get(ctx, spec.Metadata.Name, metav1.GetOptions{})
-	if err == nil {
-		return nil, &store.ConflictError{Message: fmt.Sprintf("PVC %q already exists", spec.Metadata.Name)}
-	}
-	if !apierrors.IsNotFound(err) {
-		return nil, err
 	}
 
 	storageClass := resolveStorageClass(spec, s.cfg.DefaultStorageClass)
@@ -50,12 +39,12 @@ func (s *K8sVolumeStore) Create(ctx context.Context, spec v1alpha1.StorageSpec, 
 	created, err := s.client.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
 	if err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			return nil, &store.ConflictError{Message: fmt.Sprintf("PVC %q already exists", spec.Metadata.Name)}
+			return nil, &store.ConflictError{Message: fmt.Sprintf("volume %q already exists", name)}
 		}
 		return nil, err
 	}
 
-	return s.buildVolume(created, id), nil
+	return s.buildVolume(created, name), nil
 }
 
 func (s *K8sVolumeStore) validateStorageClass(ctx context.Context, name string) error {
