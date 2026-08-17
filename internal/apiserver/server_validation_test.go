@@ -24,7 +24,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const validCreateBody = `{"spec":{"service_type":"storage","metadata":{"name":"test-vol"},"capacity":"10Gi"}}`
+const (
+	validCreateBody = `{"spec":{"service_type":"storage","metadata":{"name":"test-vol"},"capacity":"10Gi"}}`
+	volumesAPIPath  = "/api/v1alpha1/volumes"
+)
 
 func createBodyWithName(name string) string {
 	return fmt.Sprintf(`{"spec":{"service_type":"storage","metadata":{"name":%q},"capacity":"10Gi"}}`, name)
@@ -96,7 +99,7 @@ func startValidationServer(repo store.VolumeRepository) string {
 	}()
 
 	Eventually(func() error {
-		resp, reqErr := http.Get(fmt.Sprintf("http://%s/api/v1alpha1/volumes/health", addr))
+		resp, reqErr := http.Get(fmt.Sprintf("http://%s%s/health", addr, volumesAPIPath))
 		if reqErr != nil {
 			return reqErr
 		}
@@ -139,7 +142,7 @@ var _ = Describe("Volume API - Request Validation", func() {
 			baseURL := startValidationServer(&stubVolumeRepository{})
 
 			resp, err := http.Post(
-				baseURL+"/api/v1alpha1/volumes",
+				baseURL+volumesAPIPath,
 				"application/json",
 				strings.NewReader(bodyJSON),
 			)
@@ -147,7 +150,7 @@ var _ = Describe("Volume API - Request Validation", func() {
 			defer func() { _ = resp.Body.Close() }()
 
 			problem := expectProblem400(resp, description)
-			Expect(problem["instance"]).To(Equal("/api/v1alpha1/volumes"))
+			Expect(problem["instance"]).To(Equal(volumesAPIPath))
 		},
 
 		Entry("empty object",
@@ -193,7 +196,7 @@ var _ = Describe("Volume API - Request Validation", func() {
 			baseURL := startValidationServer(&stubVolumeRepository{})
 
 			resp, err := http.Post(
-				baseURL+"/api/v1alpha1/volumes?id="+invalidID,
+				baseURL+volumesAPIPath+"?id="+invalidID,
 				"application/json",
 				strings.NewReader(validCreateBody),
 			)
@@ -201,7 +204,7 @@ var _ = Describe("Volume API - Request Validation", func() {
 			defer func() { _ = resp.Body.Close() }()
 
 			problem := expectProblem400(resp, description)
-			Expect(problem["instance"]).To(HavePrefix("/api/v1alpha1/volumes?id="))
+			Expect(problem["instance"]).To(HavePrefix(volumesAPIPath + "?id="))
 		},
 		Entry("leading dash", "-leading-dash", "ID starting with dash"),
 		Entry("trailing dash", "trailing-", "ID ending with dash"),
@@ -215,7 +218,7 @@ var _ = Describe("Volume API - Request Validation", func() {
 			baseURL := startValidationServer(&stubVolumeRepository{})
 
 			resp, err := http.Post(
-				baseURL+"/api/v1alpha1/volumes?id="+validID,
+				baseURL+volumesAPIPath+"?id="+validID,
 				"application/json",
 				strings.NewReader(createBodyWithName(validID)),
 			)
@@ -237,7 +240,7 @@ var _ = Describe("Volume API - Request Validation", func() {
 		baseURL := startValidationServer(&stubVolumeRepository{})
 
 		resp, err := http.Post(
-			baseURL+"/api/v1alpha1/volumes",
+			baseURL+volumesAPIPath,
 			"application/json",
 			strings.NewReader(validCreateBody),
 		)

@@ -22,8 +22,7 @@ func newCreateError400(detail, requestPath string) oapigen.CreateVolume400Applic
 }
 
 func (h *Handler) mapCreateError(err error, requestPath string) oapigen.CreateVolumeResponseObject {
-	var conflict *store.ConflictError
-	if errors.As(err, &conflict) {
+	if _, ok := errors.AsType[*store.ConflictError](err); ok {
 		detail := err.Error()
 		return oapigen.CreateVolume409ApplicationProblemPlusJSONResponse{
 			Type:     v1alpha1.ALREADYEXISTS,
@@ -34,8 +33,7 @@ func (h *Handler) mapCreateError(err error, requestPath string) oapigen.CreateVo
 		}
 	}
 
-	var failed *store.FailedPreconditionError
-	if errors.As(err, &failed) {
+	if _, ok := errors.AsType[*store.FailedPreconditionError](err); ok {
 		detail := err.Error()
 		return oapigen.CreateVolume422ApplicationProblemPlusJSONResponse{
 			Type:     v1alpha1.FAILEDPRECONDITION,
@@ -46,8 +44,7 @@ func (h *Handler) mapCreateError(err error, requestPath string) oapigen.CreateVo
 		}
 	}
 
-	var invalid *store.InvalidArgumentError
-	if errors.As(err, &invalid) {
+	if _, ok := errors.AsType[*store.InvalidArgumentError](err); ok {
 		return newCreateError400(err.Error(), requestPath)
 	}
 
@@ -63,8 +60,7 @@ func (h *Handler) mapCreateError(err error, requestPath string) oapigen.CreateVo
 }
 
 func (h *Handler) mapGetError(err error, requestPath string) oapigen.GetVolumeResponseObject {
-	var notFound *store.NotFoundError
-	if errors.As(err, &notFound) {
+	if _, ok := errors.AsType[*store.NotFoundError](err); ok {
 		detail := err.Error()
 		return oapigen.GetVolume404ApplicationProblemPlusJSONResponse{
 			Type:     v1alpha1.NOTFOUND,
@@ -87,8 +83,7 @@ func (h *Handler) mapGetError(err error, requestPath string) oapigen.GetVolumeRe
 }
 
 func (h *Handler) mapDeleteError(err error, requestPath string) oapigen.DeleteVolumeResponseObject {
-	var notFound *store.NotFoundError
-	if errors.As(err, &notFound) {
+	if _, ok := errors.AsType[*store.NotFoundError](err); ok {
 		detail := err.Error()
 		return oapigen.DeleteVolume404ApplicationProblemPlusJSONResponse{
 			Type:     v1alpha1.NOTFOUND,
@@ -111,8 +106,7 @@ func (h *Handler) mapDeleteError(err error, requestPath string) oapigen.DeleteVo
 }
 
 func (h *Handler) mapListError(err error, requestPath string) oapigen.ListVolumesResponseObject {
-	var invalid *store.InvalidArgumentError
-	if errors.As(err, &invalid) {
+	if _, ok := errors.AsType[*store.InvalidArgumentError](err); ok {
 		detail := err.Error()
 		return oapigen.ListVolumes400ApplicationProblemPlusJSONResponse{
 			Type:     v1alpha1.INVALIDARGUMENT,
