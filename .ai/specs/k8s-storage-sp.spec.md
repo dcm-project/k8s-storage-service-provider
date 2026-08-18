@@ -814,7 +814,7 @@ historical event replay.
 |----|-------------|----------|-------|
 | REQ-MON-010 | The SP MUST watch PVC resources in the configured namespace using a `SharedIndexInformer` | MUST | |
 | REQ-MON-020 | The informer MUST filter PVCs using label selector `dcm.project/managed-by=dcm,dcm.project/dcm-service-type=storage` | MUST | |
-| REQ-MON-030 | The informer MUST maintain a secondary index on the `dcm.project/dcm-instance-id` label to enable fast lookups | MUST | |
+| REQ-MON-025 | The Event informer MUST filter with field selector `involvedObject.kind=PersistentVolumeClaim` | MUST | |
 | REQ-MON-040 | Status reconciliation MUST follow the status mapping table | MUST | REQ-MON-120 |
 | REQ-MON-050 | When a PVC object no longer exists for a previously tracked instance, the status MUST be `DELETED` | MUST | |
 | REQ-MON-060 | Status changes MUST be published to NATS subject `dcm.storage` | MUST | |
@@ -872,13 +872,6 @@ historical event replay.
 - **Given** the informer is running
 - **When** PVCs are watched
 - **Then** only PVCs with `dcm.project/managed-by=dcm` and `dcm.project/dcm-service-type=storage` MUST be observed
-
-##### AC-MON-030: dcm-instance-id secondary index
-
-- **Validates:** REQ-MON-030
-- **Given** the informer receives a PVC event
-- **When** the PVC has label `dcm.project/dcm-instance-id=abc-123`
-- **Then** the PVC MUST be indexable by instance ID `abc-123`
 
 ##### AC-MON-040: Status mapping — provisioning
 

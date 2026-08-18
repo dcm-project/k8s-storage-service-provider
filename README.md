@@ -6,8 +6,8 @@ storage volumes on Kubernetes clusters using `PersistentVolumeClaim` resources.
 ## Overview
 
 This service provider maps the portable `storage` service type to Kubernetes
-PVCs. It exposes an AEP-compliant REST API and registers with the DCM control
-plane. Volume lifecycle status via CloudEvents is planned but not implemented yet.
+PVCs. It exposes an AEP-compliant REST API, registers with the DCM control
+plane, and publishes volume lifecycle status as CloudEvents on NATS.
 
 See the [k8s-storage-sp enhancement](https://github.com/dcm-project/enhancements/blob/main/enhancements/k8s-storage-sp/k8s-storage-sp.md)
 for the full design.
@@ -20,7 +20,7 @@ for the full design.
 - **Portable contract** — implements the DCM `storage` service type with
   `provider_hints.kubernetes` for StorageClass, volume mode, and access mode
 - **Status monitoring** — watches PVCs and publishes status changes via
-  CloudEvents on NATS subject `dcm.storage` *(not implemented yet)*
+  CloudEvents on NATS subject `dcm.storage`
 - **Auto-registration** — registers with the DCM Service Provider Manager on
   startup, with exponential backoff retry
 - **Health check** — exposes a resource-relative health endpoint for DCM polling
@@ -34,6 +34,7 @@ for the full design.
 - Go 1.26.0+
 - `make`
 - `golangci-lint` (for `make lint`)
+- NATS server (for status event publishing when running the SP)
 
 ### Build
 
@@ -75,6 +76,22 @@ Generated files (do not edit manually):
 - `internal/api/server/server.gen.go`
 - `pkg/client/client.gen.go`
 
+## Configuration
+
+### NATS
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SP_NATS_URL` | **Yes** | — | NATS server URL for publishing status events (e.g. `nats://nats:4222`) |
+
+### Monitoring
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SP_MONITOR_DEBOUNCE_MS` | No | `500` | Debounce interval in milliseconds before publishing a status change |
+| `SP_MONITOR_RESYNC_PERIOD` | No | `10m` | How often the informer performs a full resync of PVCs |
+| `SP_MONITOR_PUBLISH_MAX_ATTEMPTS` | No | `5` | Max attempts when publishing a status event to NATS fails |
+
 ## API
 
 Contract: `api/v1alpha1/openapi.yaml`
@@ -99,6 +116,7 @@ Contract: `api/v1alpha1/openapi.yaml`
 │   ├── config/
 │   ├── handlers/
 │   ├── kubernetes/
+│   ├── monitoring/            # PVC informer + CloudEvents over NATS
 │   └── registration/
 ├── pkg/client/                # Generated HTTP client
 ├── .ai/
