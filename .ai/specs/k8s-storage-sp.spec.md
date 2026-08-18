@@ -140,10 +140,10 @@ authentication/authorization middleware, rate limiting.
 | REQ-HTTP-040 | The SP MUST initiate graceful shutdown on SIGINT, behaving identically to REQ-HTTP-030 | MUST | |
 | REQ-HTTP-050 | The SP MUST load configuration values from environment variables | MUST | |
 | REQ-HTTP-060 | The SP MUST log each HTTP request at INFO level including method, path, response status code, and duration | MUST | |
-| REQ-HTTP-070 | The SP MUST catch panics in HTTP handlers and return an RFC 7807 INTERNAL error response. Panics that signal intentional connection abort MUST be re-raised. If the response has already started streaming, the panic MUST be logged without writing a response body. Recovery middleware MUST be applied as the outermost middleware layer to ensure panics in any middleware are caught | MUST | |
+| REQ-HTTP-070 | The SP MUST catch panics in HTTP handlers and return an RFC 9457 INTERNAL error response. Panics that signal intentional connection abort MUST be re-raised. If the response has already started streaming, the panic MUST be logged without writing a response body. Recovery middleware MUST be applied as the outermost middleware layer to ensure panics in any middleware are caught | MUST | |
 | REQ-HTTP-080 | The SP MUST log server lifecycle events including listen address on startup | MUST | |
-| REQ-HTTP-090 | The SP MUST return 400 Bad Request with RFC 7807 error body for malformed requests | MUST | |
-| REQ-HTTP-091 | The API framework layer MUST return RFC 7807 error responses for request parsing and response serialization failures, not plain text | MUST | |
+| REQ-HTTP-090 | The SP MUST return 400 Bad Request with RFC 9457 error body for malformed requests | MUST | |
+| REQ-HTTP-091 | The API framework layer MUST return RFC 9457 error responses for request parsing and response serialization failures, not plain text | MUST | |
 | REQ-HTTP-110 | The SP SHOULD enforce a configurable per-request timeout, cancelling the request context after the deadline | SHOULD | |
 
 #### Configuration Introduced
@@ -215,7 +215,7 @@ authentication/authorization middleware, rate limiting.
 - **Validates:** REQ-HTTP-070
 - **Given** a handler panics during request processing
 - **When** the panic is caught
-- **Then** the response MUST be HTTP 500 with RFC 7807 body (type=INTERNAL)
+- **Then** the response MUST be HTTP 500 with RFC 9457 body (type=INTERNAL)
 - **And** the panic and stack trace MUST be logged at ERROR level
 - **And** panics that signal intentional connection abort MUST be re-raised
 - **And** if the response has already started streaming, a warning MUST be logged without writing a response body
@@ -225,14 +225,14 @@ authentication/authorization middleware, rate limiting.
 - **Validates:** REQ-HTTP-090
 - **Given** a request with invalid parameters (e.g., malformed query params)
 - **When** the request reaches the router
-- **Then** the SP MUST return a 400 Bad Request with an RFC 7807 error body
+- **Then** the SP MUST return a 400 Bad Request with an RFC 9457 error body
 
 ##### AC-HTTP-091: Framework-layer error responses
 
 - **Validates:** REQ-HTTP-091
 - **Given** the API framework layer encounters a request parsing or response serialization failure
 - **When** an error response is generated
-- **Then** the error response MUST be RFC 7807 with `Content-Type: application/problem+json`
+- **Then** the error response MUST be RFC 9457 with `Content-Type: application/problem+json`
 - **And** INTERNAL errors MUST NOT expose implementation details
 
 ##### AC-HTTP-110: Request timeout
@@ -334,7 +334,7 @@ Out of scope: NATS connectivity checks, readiness vs liveness distinction
 
 Implement all volume operations defined in the OpenAPI specification. Wire each
 endpoint to the `VolumeRepository` interface (§4.4, REQ-STR-*). Map store and
-validation errors to RFC 7807 responses.
+validation errors to RFC 9457 responses.
 
 The portable contract is `StorageSpec` in the create request `Volume.spec`;
 responses use the full `Volume` resource with read-only `id`, `path`, `status`,
@@ -349,15 +349,15 @@ Out of scope: authentication/authorization (401/403), workload attachment
 |----|-------------|----------|-------|
 | REQ-API-010 | The SP MUST implement all API operations defined in the OpenAPI specification | MUST | |
 | REQ-API-020 | POST `/api/v1alpha1/volumes` MUST accept a `Volume` body (portable fields in `spec`) and return 201 Created with a `Volume` | MUST | AEP-133 |
-| REQ-API-030 | When no `id` query parameter is provided, the server MUST generate a DCM instance ID conforming to AEP-122 | MUST | |
+| REQ-API-030 | When no `id` query parameter is provided, the server MUST use `spec.metadata.name` as the DCM instance ID | MUST | |
 | REQ-API-040 | When an `id` query parameter is provided, the server MUST use it as the DCM instance ID | MUST | |
-| REQ-API-041 | When an `id` query parameter is provided, it MUST conform to AEP-122 pattern `^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$` | MUST | |
+| REQ-API-041 | When an `id` query parameter is provided, it MUST conform to AEP-122 pattern `^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$` and MUST equal `spec.metadata.name` | MUST | |
 | REQ-API-050 | `spec.service_type` in the request MUST be `"storage"` | MUST | |
 | REQ-API-060 | POST `spec` MUST require `capacity`, `metadata.name`, and `service_type` | MUST | |
-| REQ-API-070 | `metadata.name` MUST conform to Kubernetes DNS-1123 subdomain label rules and MUST NOT exceed 63 characters | MUST | OpenAPI `maxLength: 63` |
+| REQ-API-070 | `metadata.name` MUST conform to AEP-122 and MUST NOT exceed 63 characters | MUST | OpenAPI `maxLength: 63` |
 | REQ-API-080 | Newly created volumes MUST have `status` set to `PROVISIONING` when the PVC is not yet fully bound/ready | MUST | |
 | REQ-API-090 | The create response MUST populate read-only fields: `id`, `path`, `status`, `create_time`, `update_time`, and `metadata.namespace` | MUST | |
-| REQ-API-100 | POST MUST return 409 Conflict when a PVC with the same `metadata.name` already exists in the configured namespace | MUST | |
+| REQ-API-100 | POST MUST return 409 Conflict when a volume with the same instance ID (Kubernetes PVC name) already exists in the configured namespace | MUST | |
 | REQ-API-110 | POST MUST return 422 when the requested StorageClass does not exist | MUST | |
 | REQ-API-120 | GET `/api/v1alpha1/volumes` MUST return a paginated `VolumeList` | MUST | |
 | REQ-API-121 | GET MUST return 200 OK with an empty `volumes` array when no volumes exist | MUST | |
@@ -365,9 +365,10 @@ Out of scope: authentication/authorization (401/403), workload attachment
 | REQ-API-140 | GET `/api/v1alpha1/volumes/{volume_id}` MUST return 200 with the volume when found | MUST | |
 | REQ-API-150 | GET MUST return 404 when no PVC matches the `volume_id` (`dcm-instance-id` label) | MUST | |
 | REQ-API-210 | DELETE `/api/v1alpha1/volumes/{volume_id}` MUST return 204 when delete is accepted | MUST | |
+| REQ-API-212 | DELETE MUST be idempotent: if the PVC is already removed after lookup, the operation MUST succeed with 204 | MUST | |
 | REQ-API-211 | A GET request for a deleted volume MUST return 404 Not Found | MUST | |
 | REQ-API-220 | DELETE MUST return 404 when the volume does not exist | MUST | |
-| REQ-API-230 | All error responses MUST use `Content-Type: application/problem+json` and RFC 7807 `Error` schema with at minimum `type` and `title` fields | MUST | |
+| REQ-API-230 | All error responses MUST use `Content-Type: application/problem+json` and RFC 9457 `Error` schema with at minimum `type` and `title` fields | MUST | |
 | REQ-API-231 | Error types MUST map to appropriate HTTP status codes per the error mapping table | MUST | |
 | REQ-API-240 | `provider_hints` MUST be accepted on input; `provider_hints.kubernetes.storage_class`, `volume_mode`, and `access_mode` are acted on in v1 | MUST | DD-020 |
 
@@ -377,7 +378,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 |-----------------|-------------|------------|
 | Invalid request body / validation | 400 | INVALID_ARGUMENT |
 | Volume not found | 404 | NOT_FOUND |
-| PVC name already exists | 409 | ALREADY_EXISTS |
+| Volume already exists (duplicate instance ID / PVC name) | 409 | ALREADY_EXISTS |
 | StorageClass missing | 422 | FAILED_PRECONDITION |
 | Unexpected error | 500 | INTERNAL |
 
@@ -390,19 +391,26 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **When** POST `/api/v1alpha1/volumes` is called
 - **Then** the response MUST be 201 Created with a `Volume` including `status: PROVISIONING`
 
-##### AC-API-011: Create volume — server-generated ID
+##### AC-API-011: Create volume — ID derived from metadata.name
 
 - **Validates:** REQ-API-030
-- **Given** POST `/api/v1alpha1/volumes` is called without `?id=`
+- **Given** POST `/api/v1alpha1/volumes` is called without `?id=` and `metadata.name` is `app-data`
 - **When** the volume is created
-- **Then** the response MUST contain a server-generated ID as the `id` field
+- **Then** the response `id` field MUST be `"app-data"`
 
 ##### AC-API-012: Create volume — client-specified ID
 
 - **Validates:** REQ-API-040, REQ-API-041
-- **Given** POST `/api/v1alpha1/volumes?id=app-data-volume` is called
+- **Given** POST `/api/v1alpha1/volumes?id=app-data` is called with `metadata.name: app-data`
 - **When** the volume is created
-- **Then** the response `id` field MUST be `"app-data-volume"`
+- **Then** the response `id` field MUST be `"app-data"`
+
+##### AC-API-012a: Create volume — mismatched id query parameter
+
+- **Validates:** REQ-API-041
+- **Given** POST is called with `?id=other` and `metadata.name: app-data`
+- **When** the request is processed
+- **Then** the response MUST be 400 Bad Request
 
 ##### AC-API-013: Create volume — read-only fields
 
@@ -410,7 +418,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **Given** a volume is created successfully
 - **When** the response is returned
 - **Then** the following fields MUST be populated:
-  - `id`: server-generated or client-specified DCM instance ID (AEP-122)
+  - `id`: DCM instance ID (AEP-122), equal to `metadata.name`
   - `path`: `"volumes/{volume_id}"`
   - `status`: `"PROVISIONING"` (when PVC is not yet fully bound/ready)
   - `create_time`: current timestamp
@@ -422,7 +430,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **Validates:** REQ-API-100
 - **Given** a PVC named `app-data` already exists in the configured namespace
 - **When** POST is called with `metadata.name: app-data`
-- **Then** the response MUST be 409 Conflict with an RFC 7807 error body
+- **Then** the response MUST be 409 Conflict with an RFC 9457 error body
 - **And** the existing PVC MUST NOT be modified
 
 ##### AC-API-021: Create volume — validation failure
@@ -430,7 +438,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **Validates:** REQ-API-060, REQ-API-070
 - **Given** a request body missing required fields (e.g., no `capacity`) or with an invalid `metadata.name`
 - **When** POST is called
-- **Then** the response MUST be 400 Bad Request with an RFC 7807 error body
+- **Then** the response MUST be 400 Bad Request with an RFC 9457 error body
 
 ##### AC-API-022: Create volume — StorageClass not found
 
@@ -475,7 +483,7 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **Validates:** REQ-API-150
 - **Given** no volume with id `nonexistent-volume-id` exists
 - **When** GET is called with that `volume_id`
-- **Then** the response MUST be 404 Not Found with an RFC 7807 error body
+- **Then** the response MUST be 404 Not Found with an RFC 9457 error body
 
 ##### AC-API-060: Delete volume — success
 
@@ -490,7 +498,14 @@ Out of scope: authentication/authorization (401/403), workload attachment
 - **Validates:** REQ-API-220
 - **Given** no volume with the given `volume_id` exists
 - **When** DELETE is called
-- **Then** the response MUST be 404 Not Found with an RFC 7807 error body
+- **Then** the response MUST be 404 Not Found with an RFC 9457 error body
+
+##### AC-API-062: Delete volume — idempotent when PVC already removed
+
+- **Validates:** REQ-API-212
+- **Given** a DCM-managed volume exists and the PVC is deleted before the Kubernetes delete call completes
+- **When** DELETE is called
+- **Then** the response MUST be 204 No Content
 
 ##### AC-API-070: Error response format
 
@@ -538,7 +553,7 @@ Out of scope: creating StorageClasses, CSI drivers, Pods, or workload mounts.
 |----|-------------|----------|-------|
 | REQ-STR-010 | The SP MUST define a `VolumeRepository` interface with Create, Get, List, Delete, and CheckHealth operations | MUST | DD-040 |
 | REQ-STR-020 | The Create operation MUST return the created `Volume` with all server-generated read-only fields populated | MUST | |
-| REQ-STR-030 | The Create operation MUST return a conflict error if a volume with the same `metadata.name` or instance ID already exists | MUST | |
+| REQ-STR-030 | The Create operation MUST return a conflict error if a volume with the same instance ID (PVC name) already exists | MUST | |
 | REQ-STR-040 | The Get operation MUST return the matching `Volume` for a valid `volume_id`, or a not-found error if no match exists | MUST | |
 | REQ-STR-050 | The List operation MUST accept pagination parameters (`max_page_size`, `page_token`) and return a paginated `VolumeList` | MUST | |
 | REQ-STR-060 | The List operation MUST default to `max_page_size=50` when not specified | MUST | |
@@ -569,7 +584,6 @@ Out of scope: creating StorageClasses, CSI drivers, Pods, or workload mounts.
 | REQ-K8S-160 | User-supplied `metadata.labels` MUST NOT use reserved DCM label keys | MUST | §5.1 |
 | REQ-K8S-170 | Volume status in API responses MUST be derived from PVC phase and conditions (see §4.5 status mapping) | MUST | |
 | REQ-K8S-180 | List operations MUST support pagination over DCM-managed PVCs in the configured namespace, mapping results to `page_token` / `next_page_token` | MUST | |
-| REQ-K8S-190 | Get and Delete MUST return a conflict error when multiple PVCs match the same `dcm-instance-id` label | MUST | |
 | REQ-K8S-200 | The SP MUST support authentication via kubeconfig file when `SP_K8S_KUBECONFIG` is set | MUST | |
 | REQ-K8S-210 | The SP MUST support in-cluster service account authentication when `SP_K8S_KUBECONFIG` is unset | MUST | |
 
@@ -774,13 +788,6 @@ No portable-to-K8s translation layer is required.
 - **Given** a PVC has a `deletionTimestamp`
 - **When** Get is called
 - **Then** `status` MUST be `DELETING`
-
-##### AC-K8S-170: Multiple PVC conflict
-
-- **Validates:** REQ-K8S-190
-- **Given** two PVCs share the same `dcm.project/dcm-instance-id` label
-- **When** Get or Delete is called with that instance ID
-- **Then** a conflict error MUST be returned
 
 #### Dependencies
 
@@ -1158,58 +1165,58 @@ Reserved label keys (MUST NOT be set by callers in `metadata.labels`):
 
 | Field | Source |
 |-------|--------|
-| `id` / `volume_id` | DCM instance ID (`dcm-instance-id` label), AEP-122 format |
-| `metadata.name` | Kubernetes PVC name (DNS-1123 subdomain) |
+| `id` / `volume_id` | DCM instance ID (`dcm-instance-id` label), AEP-122 format; equals Kubernetes PVC name |
+| `metadata.name` | Same value as `id` (AEP-122); used as the Kubernetes PVC name |
 | `path` | `volumes/{volume_id}` |
 
-Client may supply `?id=` on POST (AEP-122); otherwise the server generates an ID.
+Client may supply `?id=` on POST (AEP-122); when omitted, `id` is taken from
+`metadata.name`. When `?id=` is provided, it MUST equal `metadata.name`.
 
 #### Requirements
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| REQ-XC-ID-010 | Two identifiers MUST be used for volume resources: `id` (DCM instance ID in AEP-122 format, used in URL paths and stored as `dcm.project/dcm-instance-id` label) and `metadata.name` (used as the Kubernetes PVC name) | MUST | |
-| REQ-XC-ID-020 | Conflict detection on create MUST be based on `metadata.name`, not `id`. Both uniqueness constraints apply independently | MUST | REQ-API-100 |
+| REQ-XC-ID-010 | Volume resources MUST use a single identifier: `id` (DCM instance ID in AEP-122 format, used in URL paths, stored as `dcm.project/dcm-instance-id` label, and as the Kubernetes PVC name) equal to `metadata.name` | MUST | |
+| REQ-XC-ID-020 | Conflict detection on create MUST be based on duplicate instance ID (Kubernetes PVC name) | MUST | REQ-API-100 |
 
 #### Acceptance Criteria
 
-##### AC-XC-ID-010: Dual identifier usage
+##### AC-XC-ID-010: Single identifier usage
 
 - **Validates:** REQ-XC-ID-010
-- **Given** a volume is created with id `app-data-volume` and `metadata.name` `app-data`
+- **Given** a volume is created with `metadata.name` `app-data`
 - **When** the PVC is stored
-- **Then** `id` MUST be used in URL paths (`/volumes/{volume_id}`) and as the `dcm.project/dcm-instance-id` label
-- **And** `metadata.name` MUST be the Kubernetes PVC name `app-data`
+- **Then** `id` MUST be `app-data`, used in URL paths (`/volumes/{volume_id}`), as the `dcm.project/dcm-instance-id` label, and as the Kubernetes PVC name
 
-##### AC-XC-ID-020: Conflict detection based on metadata.name
+##### AC-XC-ID-020: Conflict detection on duplicate name
 
 - **Validates:** REQ-XC-ID-020
 - **Given** a volume with `metadata.name` `app-data` already exists
-- **When** a new volume with a different `id` but the same `metadata.name` `app-data` is created
+- **When** a new create request uses `metadata.name` `app-data`
 - **Then** the request MUST be rejected with a conflict error
 
 ### 5.3 Error Handling
 
-All API errors use RFC 7807 (`application/problem+json`). The `type` field uses
+All API errors use RFC 9457 (`application/problem+json`). The `type` field uses
 the enumerated codes in the OpenAPI `Error` schema.
 
 #### Requirements
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| REQ-XC-ERR-010 | All HTTP error responses MUST conform to RFC 7807 using the `Error` schema defined in the OpenAPI spec | MUST | REQ-API-230 |
+| REQ-XC-ERR-010 | All HTTP error responses MUST conform to RFC 9457 using the `Error` schema defined in the OpenAPI spec | MUST | REQ-API-230 |
 | REQ-XC-ERR-020 | Error responses MUST set `Content-Type: application/problem+json` | MUST | |
 | REQ-XC-ERR-030 | Error responses SHOULD include `detail` and `instance` fields. The `instance` field SHOULD be the request URI | SHOULD | |
 | REQ-XC-ERR-040 | Error responses for INTERNAL errors MUST NOT expose implementation details such as stack traces, panic messages, raw dependency error strings, file paths, or memory addresses | MUST | REQ-HTTP-070 |
 
 #### Acceptance Criteria
 
-##### AC-XC-ERR-010: RFC 7807 compliance
+##### AC-XC-ERR-010: RFC 9457 compliance
 
 - **Validates:** REQ-XC-ERR-010
 - **Given** any error condition in the API
 - **When** an error response is returned
-- **Then** the body MUST conform to the RFC 7807 `Error` schema with at minimum `type` and `title` fields
+- **Then** the body MUST conform to the RFC 9457 `Error` schema with at minimum `type` and `title` fields
 
 ##### AC-XC-ERR-020: Error content type
 

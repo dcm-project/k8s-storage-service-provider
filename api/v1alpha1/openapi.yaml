@@ -78,14 +78,9 @@ paths:
         - name: id
           in: query
           description: |
-            Optional client-specified ID for the volume. If not provided,
-            the server will generate an ID.
-
-            Requirements (per AEP-122):
-            - 1-63 characters long
-            - Start with a lowercase letter or digit
-            - Contain only lowercase letters, numbers, and hyphens
-            - End with letter or number
+            Optional client-specified DCM instance ID. When provided, it MUST
+            match spec.metadata.name. When omitted, the instance ID is taken from
+            spec.metadata.name (AEP-122).
           required: false
           schema:
             type: string
@@ -113,7 +108,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '409':
-          description: PVC with same name already exists
+          description: Volume with the same instance ID (PVC name) already exists
           content:
             application/problem+json:
               schema:
@@ -291,7 +286,7 @@ components:
       properties:
         name:
           type: string
-          description: PVC name in the configured namespace
+          description: DCM instance ID and Kubernetes PVC name (AEP-122)
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
           minLength: 1
           maxLength: 63
@@ -412,7 +407,7 @@ components:
 
     Error:
       type: object
-      description: RFC 7807 compliant error response
+      description: RFC 9457 compliant error response
       required:
         - type
         - title

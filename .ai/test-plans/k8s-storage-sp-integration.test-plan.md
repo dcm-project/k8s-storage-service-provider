@@ -269,15 +269,15 @@ or are not runnable.
 
 - **Priority:** High
 - **Type:** Integration
-- **Given:** PVC exists with `dcm-instance-id = "app-data-volume"`
-- **When:** GET `/api/v1alpha1/volumes/app-data-volume`
+- **Given:** PVC exists with name and `dcm-instance-id = "app-data"`
+- **When:** GET `/api/v1alpha1/volumes/app-data`
 - **Then:**
   - Response: 200 OK
   - Response body includes:
-    - `id`: `"app-data-volume"`
-    - `path`: `"volumes/app-data-volume"`
+    - `id`: `"app-data"`
+    - `path`: `"volumes/app-data"`
     - `spec.capacity`: PVC size
-    - `spec.metadata.name`: PVC name
+    - `spec.metadata.name`: `"app-data"`
     - `spec.metadata.storage_class`: StorageClass name
     - `status`: current status (`PROVISIONING` or `RUNNING`)
 
@@ -402,7 +402,7 @@ Expansion test cases are excluded from v1 (post-v1 enhancement scope).
 - **Then:**
   - CloudEvent published to `dcm.storage`
   - Event has `type: "dcm.status.storage"`
-  - Event data: `{"id": "app-data-volume", "status": "PROVISIONING", "message": "..."}`
+  - Event data: `{"id": "app-data", "status": "PROVISIONING", "message": "..."}`
 
 ### TC-I061: CloudEvent published on PVC bind
 
