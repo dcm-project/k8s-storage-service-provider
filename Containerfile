@@ -20,6 +20,11 @@ WORKDIR /app
 
 COPY --from=builder /app/k8s-storage-service-provider .
 
+# OpenShift runs arbitrary UIDs in group 0; g+rwX keeps /app usable.
+RUN chown -R 1001:0 /app && chmod -R g+rwX /app
+
+USER 1001
+
 EXPOSE 8080
 
 ENTRYPOINT ["./k8s-storage-service-provider"]
