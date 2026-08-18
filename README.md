@@ -125,6 +125,12 @@ Contract: `api/v1alpha1/openapi.yaml`
 └── Makefile
 ```
 
+### Releasing
+
+Images are pushed to `quay.io/dcm-project/k8s-storage-service-provider`.
+See [Releasing](https://github.com/dcm-project/shared-workflows#release-flow)
+in shared-workflows for the full release process, tag behavior, and version conventions.
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
