@@ -539,6 +539,7 @@ type DeleteVolumeResponse struct {
 	Body                      []byte
 	HTTPResponse              *http.Response
 	ApplicationproblemJSON404 *Error
+	ApplicationproblemJSON422 *Error
 	ApplicationproblemJSON500 *Error
 }
 
@@ -563,6 +564,7 @@ type GetVolumeResponse struct {
 	HTTPResponse              *http.Response
 	JSON200                   *Volume
 	ApplicationproblemJSON404 *Error
+	ApplicationproblemJSON422 *Error
 	ApplicationproblemJSON500 *Error
 }
 
@@ -776,6 +778,13 @@ func ParseDeleteVolumeResponse(rsp *http.Response) (*DeleteVolumeResponse, error
 		}
 		response.ApplicationproblemJSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -815,6 +824,13 @@ func ParseGetVolumeResponse(rsp *http.Response) (*GetVolumeResponse, error) {
 			return nil, err
 		}
 		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Error

@@ -29,10 +29,6 @@ const (
 	volumesAPIPath  = "/api/v1alpha1/volumes"
 )
 
-func createBodyWithName(name string) string {
-	return fmt.Sprintf(`{"spec":{"service_type":"storage","metadata":{"name":%q},"capacity":"10Gi"}}`, name)
-}
-
 // stubVolumeRepository is a minimal store for happy-path middleware tests.
 type stubVolumeRepository struct{}
 
@@ -220,7 +216,7 @@ var _ = Describe("Volume API - Request Validation", func() {
 			resp, err := http.Post(
 				baseURL+volumesAPIPath+"?id="+validID,
 				"application/json",
-				strings.NewReader(createBodyWithName(validID)),
+				strings.NewReader(validCreateBody),
 			)
 			Expect(err).NotTo(HaveOccurred())
 			defer func() { _ = resp.Body.Close() }()

@@ -197,7 +197,7 @@ pure logic.
 - **When:** Request is validated
 - **Then:** Validation error returned: "metadata.name is required"
 
-### TC-U024: Validate metadata.name format (AEP-122)
+### TC-U024: Validate metadata.name format (DNS-1123)
 
 - **Priority:** Medium
 - **Type:** Unit

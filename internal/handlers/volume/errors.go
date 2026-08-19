@@ -71,6 +71,18 @@ func (h *Handler) mapGetError(err error, requestPath string) oapigen.GetVolumeRe
 		}
 	}
 
+	var conflict *store.ConflictError
+	if errors.As(err, &conflict) {
+		detail := err.Error()
+		return oapigen.GetVolume422ApplicationProblemPlusJSONResponse{
+			Type:     v1alpha1.FAILEDPRECONDITION,
+			Title:    "Failed precondition",
+			Status:   util.Ptr(int32(http.StatusUnprocessableEntity)),
+			Detail:   &detail,
+			Instance: &requestPath,
+		}
+	}
+
 	h.logger.Error("unexpected error in GetVolume", "error", err)
 	detail := httperror.InternalDetail
 	return oapigen.GetVolume500ApplicationProblemPlusJSONResponse{
@@ -89,6 +101,18 @@ func (h *Handler) mapDeleteError(err error, requestPath string) oapigen.DeleteVo
 			Type:     v1alpha1.NOTFOUND,
 			Title:    "Not found",
 			Status:   util.Ptr(int32(http.StatusNotFound)),
+			Detail:   &detail,
+			Instance: &requestPath,
+		}
+	}
+
+	var conflict *store.ConflictError
+	if errors.As(err, &conflict) {
+		detail := err.Error()
+		return oapigen.DeleteVolume422ApplicationProblemPlusJSONResponse{
+			Type:     v1alpha1.FAILEDPRECONDITION,
+			Title:    "Failed precondition",
+			Status:   util.Ptr(int32(http.StatusUnprocessableEntity)),
 			Detail:   &detail,
 			Instance: &requestPath,
 		}

@@ -34,19 +34,22 @@ func (h *Handler) CreateVolume(ctx context.Context, req oapigen.CreateVolumeRequ
 
 	spec := req.Body.Spec
 
-	if err := validateCreateSpec(spec); err != nil {
-		return newCreateError400(err.Error(), requestPath), nil
-	}
-
-	id := spec.Metadata.Name
+	var id string
 	if req.Params.Id != nil {
-		if *req.Params.Id != spec.Metadata.Name {
-			return newCreateError400("id query parameter must match metadata.name", requestPath), nil
-		}
 		id = *req.Params.Id
+	} else {
+		generated, err := generateVolumeID()
+		if err != nil {
+			h.logger.Error("failed to generate volume id", "error", err)
+			return h.mapCreateError(err, requestPath), nil
+		}
+		id = generated
 	}
 
 	if err := validateVolumeID(id); err != nil {
+		return newCreateError400(err.Error(), requestPath), nil
+	}
+	if err := validateCreateSpec(spec); err != nil {
 		return newCreateError400(err.Error(), requestPath), nil
 	}
 	if err := validateUserLabels(spec.Metadata.Labels); err != nil {

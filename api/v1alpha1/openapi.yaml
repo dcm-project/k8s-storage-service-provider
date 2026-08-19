@@ -78,9 +78,14 @@ paths:
         - name: id
           in: query
           description: |
-            Optional client-specified DCM instance ID. When provided, it MUST
-            match spec.metadata.name. When omitted, the instance ID is taken from
-            spec.metadata.name (AEP-122).
+            Optional client-specified ID for the volume. If not provided,
+            the server will generate an ID.
+
+            Requirements (per AEP-122):
+            - 1-63 characters long
+            - Start with a lowercase letter or digit
+            - Contain only lowercase letters, numbers, and hyphens
+            - End with letter or number
           required: false
           schema:
             type: string
@@ -108,7 +113,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '409':
-          description: Volume with the same instance ID (PVC name) already exists
+          description: PVC with same name already exists
           content:
             application/problem+json:
               schema:
@@ -163,6 +168,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '422':
+          description: Multiple PVCs match the volume instance ID
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           description: Internal server error
           content:
@@ -183,6 +194,12 @@ paths:
           description: Volume deleted successfully
         '404':
           description: Volume not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Multiple PVCs match the volume instance ID
           content:
             application/problem+json:
               schema:
@@ -286,7 +303,7 @@ components:
       properties:
         name:
           type: string
-          description: DCM instance ID and Kubernetes PVC name (AEP-122)
+          description: PVC name in the configured namespace
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
           minLength: 1
           maxLength: 63

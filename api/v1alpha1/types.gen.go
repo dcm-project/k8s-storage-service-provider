@@ -241,7 +241,7 @@ type VolumeMetadata struct {
 	// Labels Custom key-value pairs for tagging and filtering
 	Labels *map[string]string `json:"labels,omitempty"`
 
-	// Name DCM instance ID and Kubernetes PVC name (AEP-122)
+	// Name PVC name in the configured namespace
 	Name string `json:"name"`
 
 	// Namespace Kubernetes namespace where the PVC was created
@@ -271,9 +271,14 @@ type ListVolumesParams struct {
 
 // CreateVolumeParams defines parameters for CreateVolume.
 type CreateVolumeParams struct {
-	// Id Optional client-specified DCM instance ID. When provided, it MUST
-	// match spec.metadata.name. When omitted, the instance ID is taken from
-	// spec.metadata.name (AEP-122).
+	// Id Optional client-specified ID for the volume. If not provided,
+	// the server will generate an ID.
+	//
+	// Requirements (per AEP-122):
+	// - 1-63 characters long
+	// - Start with a lowercase letter or digit
+	// - Contain only lowercase letters, numbers, and hyphens
+	// - End with letter or number
 	Id *string `form:"id,omitempty" json:"id,omitempty"`
 }
 
