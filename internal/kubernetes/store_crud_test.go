@@ -193,12 +193,19 @@ var _ = Describe("K8s Volume Store CRUD", func() {
 			Expect(*pvc.Spec.StorageClassName).To(Equal("default-sc"))
 		})
 
-		It("returns invalid argument when instance id does not match metadata.name", func() {
-			s, _ := newTestStore(defaultConfig())
-			_, err := s.Create(context.Background(), minimalVolumeSpec("app-data"), "other-id")
-			Expect(err).To(HaveOccurred())
-			var invalid *store.InvalidArgumentError
-			Expect(errors.As(err, &invalid)).To(BeTrue())
+		It("names the PVC from the instance id, overwriting metadata.name", func() {
+			s, client := newTestStore(defaultConfig())
+			result, err := s.Create(context.Background(), minimalVolumeSpec("catalog-default"), "other-id")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(*result.Id).To(Equal("other-id"))
+			Expect(result.Spec.Metadata.Name).To(Equal("other-id"))
+
+			_, err = client.CoreV1().PersistentVolumeClaims("default").Get(context.Background(), "catalog-default", metav1.GetOptions{})
+			Expect(apierrors.IsNotFound(err)).To(BeTrue())
+
+			pvc, err := client.CoreV1().PersistentVolumeClaims("default").Get(context.Background(), "other-id", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pvc.Labels).To(HaveKeyWithValue(dcm.LabelInstanceID, "other-id"))
 		})
 
 		It("returns conflict when volume already exists (TC-U061)", func() {
