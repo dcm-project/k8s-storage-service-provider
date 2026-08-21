@@ -117,15 +117,17 @@ var _ = Describe("Volume API Handlers", func() {
 			Expect(created.Id).NotTo(BeNil())
 		})
 
-		It("uses client-specified id when it matches metadata.name", func() {
+		It("uses client-specified id as identity, overwriting metadata.name", func() {
 			var capturedID string
+			var capturedName string
 			repo.CreateFunc = func(_ context.Context, spec v1alpha1.StorageSpec, id string) (*v1alpha1.Volume, error) {
 				capturedID = id
+				capturedName = spec.Metadata.Name
 				return newVolumeResult(spec, id), nil
 			}
 
 			spec := validCreateSpec()
-			spec.Metadata.Name = "app-data-volume"
+			spec.Metadata.Name = "catalog-default"
 			resp, err := h.CreateVolume(context.Background(), oapigen.CreateVolumeRequestObject{
 				Params: v1alpha1.CreateVolumeParams{Id: util.Ptr("app-data-volume")},
 				Body:   &v1alpha1.Volume{Spec: spec},
@@ -134,6 +136,7 @@ var _ = Describe("Volume API Handlers", func() {
 			_, ok := resp.(oapigen.CreateVolume201JSONResponse)
 			Expect(ok).To(BeTrue())
 			Expect(capturedID).To(Equal("app-data-volume"))
+			Expect(capturedName).To(Equal("app-data-volume"))
 		})
 
 		It("derives id from metadata.name when no id query param (REQ-API-030)", func() {
@@ -152,17 +155,6 @@ var _ = Describe("Volume API Handlers", func() {
 			Expect(capturedID).To(Equal("app-data"))
 			Expect(created.Id).NotTo(BeNil())
 			Expect(*created.Id).To(Equal("app-data"))
-		})
-
-		It("returns 400 when id query param does not match metadata.name", func() {
-			resp, err := h.CreateVolume(context.Background(), oapigen.CreateVolumeRequestObject{
-				Params: v1alpha1.CreateVolumeParams{Id: util.Ptr("other-id")},
-				Body:   &v1alpha1.Volume{Spec: validCreateSpec()},
-			})
-			Expect(err).NotTo(HaveOccurred())
-			errResp, ok := resp.(oapigen.CreateVolume400ApplicationProblemPlusJSONResponse)
-			Expect(ok).To(BeTrue())
-			Expect(*errResp.Detail).To(ContainSubstring("must match metadata.name"))
 		})
 
 		It("returns 409 on conflict (TC-U061)", func() {

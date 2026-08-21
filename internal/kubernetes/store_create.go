@@ -12,13 +12,8 @@ import (
 
 // Create creates a new volume backed by a PersistentVolumeClaim.
 func (s *K8sVolumeStore) Create(ctx context.Context, spec v1alpha1.StorageSpec, id string) (*v1alpha1.Volume, error) {
-	if id != spec.Metadata.Name {
-		return nil, &store.InvalidArgumentError{
-			Message: fmt.Sprintf("instance id %q must match metadata.name %q", id, spec.Metadata.Name),
-		}
-	}
-
-	name := spec.Metadata.Name
+	spec.Metadata.Name = id
+	name := id
 	labels := dcmLabels(name)
 	if spec.Metadata.Labels != nil {
 		labels = mergeLabels(labels, *spec.Metadata.Labels)
