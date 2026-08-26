@@ -265,4 +265,30 @@ var _ = Describe("Volume API - Request Validation", func() {
 		Expect(ok).To(BeTrue(), "metadata should be an object")
 		Expect(meta["name"]).To(Equal("test-vol"))
 	})
+
+	It("canonicalizes metadata.name from the id query parameter (TC-2.1.1 DCM-managed create)", func() {
+		repo := &stubVolumeRepository{}
+		baseURL := startValidationServer(repo)
+
+		resp, err := http.Post(
+			baseURL+volumesAPIPath+"?id=client-assigned-id",
+			"application/json",
+			strings.NewReader(`{"spec":{"service_type":"storage","metadata":{"name":"catalog-default"},"capacity":"10Gi"}}`),
+		)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = resp.Body.Close() }()
+		Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+
+		respBody, err := io.ReadAll(resp.Body)
+		Expect(err).NotTo(HaveOccurred())
+
+		var result map[string]any
+		Expect(json.Unmarshal(respBody, &result)).To(Succeed())
+		Expect(result["id"]).To(Equal("client-assigned-id"))
+		spec, ok := result["spec"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		meta, ok := spec["metadata"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(meta["name"]).To(Equal("client-assigned-id"))
+	})
 })
