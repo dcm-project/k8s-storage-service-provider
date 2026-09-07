@@ -1041,7 +1041,7 @@ integration, provider capability updates post-registration.
 
 | Config Key | Env Var | Default | Description |
 |------------|---------|---------|-------------|
-| dcm.registrationUrl | DCM_REGISTRATION_URL | (required) | DCM SP registration base URL |
+| dcm.registrationUrl | DCM_REGISTRATION_URL | (required) | Environment-agent API base URL (e.g. `http://environment-agent:8080/api/v1alpha1`); registrar posts to `/providers` |
 | provider.name | SP_NAME | (required) | Provider name |
 | provider.displayName | SP_DISPLAY_NAME | (optional) | Human-readable name |
 | provider.endpoint | SP_ENDPOINT | (required) | Externally reachable SP base URL |

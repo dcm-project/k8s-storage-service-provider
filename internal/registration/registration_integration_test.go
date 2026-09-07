@@ -359,6 +359,47 @@ var _ = Describe("Registration Integration", func() {
 			"expected exactly 1 registration attempt from 3 Start() calls")
 	})
 
+	It("stops retrying on 404 when registration URL points at control-plane (AC-REG-046)", func() {
+		var requestCount atomic.Int32
+
+		mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost && r.URL.Path == "/providers" {
+				requestCount.Add(1)
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+
+		cfg = &config.Config{
+			Provider: config.ProviderConfig{
+				Name:        "k8s-storage-sp",
+				DisplayName: "K8s Storage SP",
+				Endpoint:    "https://sp.example.com",
+			},
+			DCM: config.DCMConfig{
+				RegistrationURL: mockServer.URL,
+			},
+		}
+
+		registrar, err := registration.NewRegistrar(cfg, logger,
+			registration.SetInitialBackoff(10*time.Millisecond),
+			registration.SetMaxBackoff(50*time.Millisecond),
+		)
+		Expect(err).NotTo(HaveOccurred())
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		registrar.Start(ctx)
+
+		Eventually(registrar.Done()).WithTimeout(3*time.Second).Should(BeClosed(),
+			"Done() channel should close after non-retryable 404")
+
+		Expect(requestCount.Load()).To(Equal(int32(1)),
+			"expected exactly 1 registration attempt for 404")
+
+		Expect(logBuf.String()).To(ContainSubstring("environment-agent API base"))
+		Expect(logBuf.String()).To(ContainSubstring("non-retryable"))
+	})
+
 	It("Done() channel closes after successful registration", func() {
 		mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodPost && r.URL.Path == "/providers" {

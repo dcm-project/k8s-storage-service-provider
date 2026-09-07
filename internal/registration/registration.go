@@ -1,4 +1,5 @@
-// Package registration handles service provider registration with the DCM control plane.
+// Package registration handles service provider registration with the DCM
+// environment-agent provider registry (POST /api/v1alpha1/providers).
 package registration
 
 import (
@@ -25,6 +26,9 @@ const (
 )
 
 var errNonRetryable = errors.New("non-retryable")
+
+// Shown when POST {DCM_REGISTRATION_URL}/providers returns 404 (often control-plane URL).
+const errHintRegistrationTarget = "DCM_REGISTRATION_URL must be the environment-agent API base (…/api/v1alpha1); see README Registration"
 
 var endpointSuffix = mustPostPath()
 
@@ -55,7 +59,7 @@ func SetMaxBackoff(d time.Duration) Option {
 	}
 }
 
-// Registrar handles registration with the DCM service provider registry.
+// Registrar handles registration with the environment-agent provider registry.
 type Registrar struct {
 	cfg            *config.Config
 	logger         *slog.Logger
@@ -182,6 +186,12 @@ func (r *Registrar) register(ctx context.Context, provider dcmv1alpha1.Provider)
 	}
 
 	sc := resp.StatusCode()
+	if sc == http.StatusNotFound {
+		return fmt.Errorf(
+			"POST %s/providers: not found (404); %s: %w",
+			r.cfg.DCM.RegistrationURL, errHintRegistrationTarget, errNonRetryable,
+		)
+	}
 	if sc >= 400 && sc < 500 {
 		body := resp.Body
 		if len(body) > 200 {

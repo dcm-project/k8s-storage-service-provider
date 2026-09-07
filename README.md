@@ -6,8 +6,9 @@ storage volumes on Kubernetes clusters using `PersistentVolumeClaim` resources.
 ## Overview
 
 This service provider maps the portable `storage` service type to Kubernetes
-PVCs. It exposes an AEP-compliant REST API, registers with the DCM control
-plane, and publishes volume lifecycle status as CloudEvents on NATS.
+PVCs. It exposes an AEP-compliant REST API, registers as an external provider
+with the DCM environment-agent, and publishes volume lifecycle status as
+CloudEvents on NATS.
 
 See the [k8s-storage-sp enhancement](https://github.com/dcm-project/enhancements/blob/main/enhancements/k8s-storage-sp/k8s-storage-sp.md)
 for the full design.
@@ -21,9 +22,9 @@ for the full design.
   `provider_hints.kubernetes` for StorageClass, volume mode, and access mode
 - **Status monitoring** — watches PVCs and publishes status changes via
   CloudEvents on NATS subject `dcm.storage`
-- **Auto-registration** — registers with the DCM Service Provider Manager on
-  startup, with exponential backoff retry
-- **Health check** — exposes a resource-relative health endpoint for DCM polling
+- **Auto-registration** — registers with the environment-agent provider registry
+  on startup (`POST /api/v1alpha1/providers`), with exponential backoff retry
+- **Health check** — exposes a resource-relative health endpoint for agent health polling
 - **AEP-compliant API** — OpenAPI v1alpha1 contract with request validation
 - **RFC 9457 errors** — problem details for all error responses
 
@@ -77,6 +78,43 @@ Generated files (do not edit manually):
 - `pkg/client/client.gen.go`
 
 ## Configuration
+
+Copy `.env.example` and adjust for your environment.
+
+### Provider identity
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SP_NAME` | **Yes** | — | Provider name (unique per agent) |
+| `SP_ENDPOINT` | **Yes** | — | Base URL reachable **from the environment-agent** (e.g. `http://k8s-storage-service-provider:8080` in compose, `http://host.docker.internal:8089` when the agent runs in a container and the SP on the host) |
+| `SP_DISPLAY_NAME` | No | — | Human-readable provider name |
+| `SP_REGION` / `SP_ZONE` | No | — | Optional metadata in the registration payload |
+
+Registered API path is `{SP_ENDPOINT}/api/v1alpha1/volumes` (derived from OpenAPI).
+
+### Registration (environment-agent)
+
+Standalone SPs register with the **environment-agent**, not the control-plane.
+Set `DCM_REGISTRATION_URL` to the agent API base; the registrar appends `/providers`.
+
+| Variable | Required | Example (compose network) | Example (local agent on host) |
+|----------|----------|---------------------------|-------------------------------|
+| `DCM_REGISTRATION_URL` | **Yes** | `http://environment-agent:8080/api/v1alpha1` | `http://localhost:8090/api/v1alpha1` |
+
+Do **not** use `http://control-plane:8080/api/v1alpha1` — the control-plane no longer
+exposes `POST /providers` (registration returns HTTP 404).
+
+When the agent runs embedded storage (`AGENT_EMBEDDED_SPS=storage`), do not deploy a
+standalone storage SP against the same agent (only one storage provider per agent).
+
+### Kubernetes
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SP_K8S_NAMESPACE` | No | `default` | Namespace for PVCs |
+| `SP_K8S_KUBECONFIG` | No | in-cluster config | Path to kubeconfig |
+| `SP_K8S_DEFAULT_STORAGE_CLASS` | No | — | Fallback when `provider_hints.kubernetes.storage_class` is omitted |
+| `SP_K8S_DEFAULT_ACCESS_MODE` | No | `ReadWriteOnce` | Fallback access mode |
 
 ### NATS
 

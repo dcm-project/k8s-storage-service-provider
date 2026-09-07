@@ -27,7 +27,9 @@ type ProviderConfig struct {
 	Zone        string `env:"ZONE"`
 }
 
-// DCMConfig holds DCM registry connection settings.
+// DCMConfig holds environment-agent provider registry connection settings.
+// RegistrationURL is the agent API base (not the control-plane); the registrar
+// posts to {RegistrationURL}/providers.
 type DCMConfig struct {
 	RegistrationURL string `env:"REGISTRATION_URL,notEmpty"`
 }
